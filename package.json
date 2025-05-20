@@ -4,12 +4,11 @@
   "description": "",
   "main": "index.js",
   "engines": {
-    "node" : "20"
+    "node": "20"
   },
-
   "scripts": {
     "server": "nodemon server.js",
-    "start" : "node server.js"
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
