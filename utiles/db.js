@@ -9,7 +9,7 @@ module.exports.dbConnect = async () => {
             w: 'majority'
         };
 
-        if (process.env.MODE === 'pro') {
+        if (process.env.mode === 'pro') {
             await mongoose.connect(process.env.DB_PRO_URL, options);
             console.log("Production database connected..");
         } else {
