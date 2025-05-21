@@ -10,8 +10,8 @@ const http = require('http')
 const server = http.createServer(app)
 
 const allowedOrigins = process.env.mode == 'pro'? [process.env.client_customer_production_url,
-    process.env.client_admin_production_url] : ['http://localhost:3000',
-            'http://localhost:3001'];
+    process.env.client_admin_production_url] : ['https://www.nimbo.co.zw',
+            'https://nimbo-dashboard.vercel.app/', ];
 
 app.use(cors({
 origin : function (origin, callback) {
