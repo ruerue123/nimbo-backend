@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express')
 const app = express()
 const cors = require('cors')
@@ -13,28 +14,28 @@ const allowedOrigins = process.env.mode == 'pro'? [process.env.client_customer_p
     process.env.client_admin_production_url] : ['https://www.nimbo.co.zw',
             'https://nimbo-dashboard.vercel.app/', ];
 
-app.use(cors({
-origin : function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)){
-        callback(null,true);
-    }else {
-        callback(new Error("Not allowed by CORS"));
+pp.use(cors({
+origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+    } else {
+        callback(new Error('Not allowed by CORS'));
     }
 },
 credentials: true
-}))
+}));
 
 const io = socket(server, {
-    cors: {
-        origin : function (origin, callback) {
-            if (!origin || allowedOrigins.includes(origin)){
-                callback(null,true);
-            }else {
-                callback(new Error("Not allowed by CORS"));
-             }
-        },
-        credentials: true
+cors: {
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
     },
+    credentials: true
+}
 });
 
 var allCustomer = []
