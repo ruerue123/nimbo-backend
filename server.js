@@ -14,7 +14,7 @@ const allowedOrigins = process.env.mode == 'pro'? [process.env.client_customer_p
     process.env.client_admin_production_url] : ['https://www.nimbo.co.zw',
             'https://nimbo-dashboard.vercel.app/', ];
 
-pp.use(cors({
+app.use(cors({
 origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
