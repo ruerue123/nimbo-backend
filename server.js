@@ -9,9 +9,11 @@ const { dbConnect } = require('./utiles/db')
 const socket = require('socket.io')
 const http = require('http')
 const server = http.createServer(app)
+const isProduction = process.env.mode ==='pro'
 
-const allowedOrigins = process.env.mode ==='pro'? [process.env.client_customer_production_url, process.env.client_admin_production_url]
+const allowedOrigins = isProduction ? [process.env.client_customer_production_url, process.env.client_admin_production_url]
 : ['http://localhost:3000', 'http://localhost:3001'];
+
 
 app.use(cors({
 origin: function (origin, callback) {
