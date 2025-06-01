@@ -5,10 +5,11 @@ const cors = require('cors')
 const bodyParser = require('body-parser')
 const cookieParser = require('cookie-parser')
 const { dbConnect } = require('./utiles/db')
-const httpServer = http.createServer(app);
+
 
 const socket = require('socket.io')
 const http = require('http')
+const httpServer = http.createServer(app);
 const {Server} = require("socket.io");
 const server = http.createServer(app)
 const isProduction = process.env.mode ==='pro'
