@@ -12,9 +12,10 @@ const server = http.createServer(app); // single server instance
 const isProduction = process.env.MODE === 'pro';
 
 const corsOptions = {
-    origin: 'https://www.nimbo.co.zw', // your Vercel domain
+    origin: ['https://www.nimbo.co.zw', 'https://nimbo-dashboard.vercel.app'],
     credentials: true
 };
+
 
 app.use(cors(corsOptions));
 app.use(bodyParser.json());
