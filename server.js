@@ -7,7 +7,7 @@ const cookieParser = require('cookie-parser')
 const { dbConnect } = require('./utiles/db')
 
 const socket = require('socket.io')
-const http = require('https')
+const http = require('http')
 const server = http.createServer(app)
 const isProduction = process.env.mode ==='pro'
 
