@@ -8,35 +8,51 @@ const { dbConnect } = require('./utiles/db')
 
 const socket = require('socket.io')
 const http = require('http')
+const {Server} = require("socket.io");
 const server = http.createServer(app)
 const isProduction = process.env.mode ==='pro'
 
-const allowedOrigins = isProduction ? [process.env.client_customer_production_url, process.env.client_admin_production_url]
-: ['http://localhost:3000', 'http://localhost:3001'];
+// const allowedOrigins = isProduction ? [process.env.client_customer_production_url, process.env.client_admin_production_url]
+// : ['http://localhost:3000', 'http://localhost:3001'];3001
 
+const corsOptions = {
+    origin: 'https://www.nimbo.co.zw', // your Vercel domain
+    credentials: true, // allow cookies/auth headers if needed
+};
 
-app.use(cors({
-origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-    } else {
-        callback(new Error('Not allowed by CORS'));
+//
+// app.use(cors({
+// origin: function (origin, callback) {
+//     if (!origin || allowedOrigins.includes(origin)) {
+//         callback(null, true);
+//     } else {
+//         callback(new Error('Not allowed by CORS'));
+//     }
+// },
+// credentials: true
+// }));
+
+app.use(cors(corsOptions));
+
+// const io = socket(server, {
+// cors: {
+//     origin: function (origin, callback) {
+//         if (!origin || allowedOrigins.includes(origin)) {
+//             callback(null, true);
+//         } else {
+//             callback(new Error('Not allowed by CORS'));
+//         }
+//     },
+//     credentials: true
+// }
+// });
+
+const io = new Server(httpServer, {
+    cors: {
+        origin: 'https://www.nimbo.co.zw',
+        methods: ['GET', 'POST'],
+        credentials: true
     }
-},
-credentials: true
-}));
-
-const io = socket(server, {
-cors: {
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    credentials: true
-}
 });
 
 var allCustomer = []
