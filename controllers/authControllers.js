@@ -2,10 +2,11 @@ const adminModel = require('../models/adminModel')
 const sellerModel = require('../models/sellerModel')
 const sellerCustomerModel  = require('../models/chat/sellerCustomerModel')
 const { responseReturn } = require('../utiles/response')
-const bcrpty = require('bcrypt')
+const bcrypt = require('bcrypt');
 const { createToken } = require('../utiles/tokenCreate')
 const cloudinary = require('cloudinary').v2
 const formidable = require("formidable")
+const {compare} = require("bcrypt");
 
 class authControllers{
    
@@ -45,37 +46,40 @@ class authControllers{
     // End Method 
 
 
-    seller_login = async(req,res) => {
-        const {email,password} = req.body
+    seller_login = async (req, res) => {
+        const { email, password } = req.body;
+
         try {
-            const seller = await sellerModel.findOne({email}).select('+password')
-            // console.log(admin)
-            if (seller) {
-                const match = await bcrpty.compare(password, seller.password)
-                // console.log(match)
-                if (match) {
-                    const token = await createToken({
-                        id : seller.id,
-                        role : seller.role
-                    })
-                    res.cookie('accessToken',token,{
-                        expires : new Date(Date.now() + 7*24*60*60*1000 )
-                    }) 
-                    responseReturn(res,200,{token,message: "Login Success"})
-                } else {
-                    responseReturn(res,404,{error: "Password Wrong"})
-                }
- 
-                 
-            } else {
-                responseReturn(res,404,{error: "Email not Found"})
+            const seller = await sellerModel.findOne({ email }).select('+password');
+
+            if (!seller) {
+                return responseReturn(res, 404, { error: 'Email not found' });
             }
-            
+
+            const match = await compare(password, seller.password);
+
+            if (!match) {
+                return responseReturn(res, 401, { error: 'Incorrect password' });
+            }
+
+            const token = createToken({
+                id: seller.id,
+                role: seller.role
+            });
+
+            res.cookie('accessToken', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'Strict',
+                expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            });
+
+            console.log('TOKEN:', token);
+            responseReturn(res, 200, { token, message: 'Login success' });
         } catch (error) {
-            responseReturn(res,500,{error: error.message})
+            responseReturn(res, 500, { error: error.message });
         }
- 
-    }
+    };
     // End Method 
 
 
