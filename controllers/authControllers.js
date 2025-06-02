@@ -9,40 +9,49 @@ const formidable = require("formidable")
 const {compare} = require("bcrypt");
 
 class authControllers{
-   
-    admin_login = async(req,res) => {
-        const {email,password} = req.body
+
+    admin_login = async (req, res) => {
+        const { email, password } = req.body;
+
         try {
-            const admin = await adminModel.findOne({email}).select('+password')
-            // console.log(admin)
-            if (admin) {
-                const match = await bcrpty.compare(password, admin.password)
-                // console.log(match)
-                if (match) {
-                    const token = await createToken({
-                        id : admin.id,
-                        role : admin.role
-                    })
-                    res.cookie('accessToken',token,{
-                        expires : new Date(Date.now() + 7*24*60*60*1000 )
-                    }) 
-                    responseReturn(res,200,{token,message: "Login Success"})
-                } else {
-                    responseReturn(res,404,{error: "Password Wrong"})
-                }
+            const admin = await adminModel.findOne({ email }).select('+password');
 
-
-
-                 
-            } else {
-                responseReturn(res,404,{error: "Email not Found"})
+            if (!admin) {
+                return responseReturn(res, 404, { error: "Email not found" });
             }
-            
+
+            const match = await bcrypt.compare(password, admin.password); // You had a typo: "bcrpty"
+
+            if (!match) {
+                return responseReturn(res, 401, { error: "Incorrect password" });
+            }
+
+            const token = await createToken({
+                id: admin.id,
+                role: admin.role
+            });
+
+            // Secure cookie setup (important for cross-origin)
+            res.cookie('accessToken', token, {
+                httpOnly: true,
+                secure: true,            // required for SameSite=None on HTTPS
+                sameSite: 'None',        // allows cross-origin requests
+                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+            });
+
+            console.log("LOGIN TOKEN:", token);
+
+            return responseReturn(res, 200, {
+                token,
+                message: "Login Success"
+            });
+
         } catch (error) {
-            responseReturn(res,500,{error: error.message})
+            console.error("Login error:", error.message);
+            return responseReturn(res, 500, { error: "Internal Server Error" });
         }
- 
     }
+
     // End Method 
 
 
@@ -84,35 +93,48 @@ class authControllers{
     // End Method 
 
 
-    seller_register = async(req, res) => {
-         const {email,name,password} = req.body
-         try {
-            const getUser = await sellerModel.findOne({email})
-            if (getUser) {
-                responseReturn(res,404,{error: 'Email Already Exit'})
-            }else{
-                const seller = await sellerModel.create({
-                    name,
-                    email,
-                    password: await bcrpty.hash(password, 10),
-                    method : 'menualy',
-                    shopInfo: {}
-                })
-               await sellerCustomerModel.create({
-                     myId: seller.id
-               })
+    seller_register = async (req, res) => {
+        const { email, name, password } = req.body;
 
-               const token = await createToken({ id : seller.id, role: seller.role })
-               res.cookie('accessToken',token, {
-                expires : new Date(Date.now() + 7*24*60*60*1000 )
-               })
+        try {
+            const existingUser = await sellerModel.findOne({ email });
 
-               responseReturn(res,201,{token,message: 'Register Success'})
+            if (existingUser) {
+                return responseReturn(res, 409, { error: 'Email already exists' });
             }
-         } catch (error) {
-            responseReturn(res,500,{error: 'Internal Server Error'})
-         }
-    }
+
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            const seller = await sellerModel.create({
+                name,
+                email,
+                password: hashedPassword,
+                method: 'manually',
+                shopInfo: {}
+            });
+
+            await sellerCustomerModel.create({ myId: seller.id });
+
+            const token = await createToken({ id: seller.id, role: seller.role });
+
+            // Secure cookie setup
+            res.cookie('accessToken', token, {
+                httpOnly: true,
+                secure: true,           // Required for SameSite=None over HTTPS
+                sameSite: 'None',       // Enables cross-origin requests
+                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+            });
+
+            return responseReturn(res, 201, {
+                token,
+                message: 'Register Success'
+            });
+
+        } catch (error) {
+            console.error("Registration Error:", error.message);
+            return responseReturn(res, 500, { error: 'Internal Server Error' });
+        }
+    };
     // End Method 
 
 
@@ -122,23 +144,31 @@ class authControllers{
 
 
     getUser = async (req, res) => {
-        const {id, role} = req;
+        const { id, role } = req;
 
         try {
+            let userInfo;
+
             if (role === 'admin') {
-                const user = await adminModel.findById(id)
-                responseReturn(res, 200, {userInfo : user})
-            }else {
-                const seller = await sellerModel.findById(id)
-                responseReturn(res, 200, {userInfo : seller})
+                userInfo = await adminModel.findById(id).select('-password'); // Never return password
+            } else if (role === 'seller') {
+                userInfo = await sellerModel.findById(id).select('-password');
+            } else {
+                return responseReturn(res, 403, { error: 'Unauthorized role' });
             }
-            
+
+            if (!userInfo) {
+                return responseReturn(res, 404, { error: 'User not found' });
+            }
+
+            return responseReturn(res, 200, { userInfo });
+
         } catch (error) {
-            responseReturn(res,500,{error: 'Internal Server Error'})
+            console.error("getUser error:", error.message);
+            return responseReturn(res, 500, { error: 'Internal Server Error' });
         }
-
-
-    } // End getUser Method 
+    };
+    // End getUser Method
 
     profile_image_upload = async(req, res) => {
         const {id} = req
@@ -198,17 +228,21 @@ class authControllers{
     }
 // End Method 
 
- logout = async (req, res) => {
-    try {
-        res.cookie('accessToken',null,{
-            expires : new Date(Date.now()),
-            httpOnly: true
-        })
-        responseReturn(res, 200,{ message : 'logout Success' })
-    } catch (error) {
-        responseReturn(res, 500,{ error : error.message })
-    }
- }
+    logout = async (req, res) => {
+        try {
+            res.clearCookie('accessToken', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
+                sameSite: 'strict' // Prevent CSRF in cross-site contexts
+            });
+
+            responseReturn(res, 200, { message: 'Logout success' });
+        } catch (error) {
+            console.error('Logout error:', error.message);
+            responseReturn(res, 500, { error: 'Logout failed' });
+        }
+    };
+
 // End Method 
 
 /// Change Password 
