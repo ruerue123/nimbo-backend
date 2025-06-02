@@ -69,10 +69,11 @@ class authControllers{
 
             res.cookie('accessToken', token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'Strict',
-                expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                secure: true,
+                sameSite: 'None',
+                expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             });
+
 
             console.log('TOKEN:', token);
             responseReturn(res, 200, { token, message: 'Login success' });
