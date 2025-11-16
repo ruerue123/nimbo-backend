@@ -162,13 +162,50 @@ class productController{
             }
         }
 
- 
-
     })
   }
   // End Method 
 
+  delete_product = async (req, res) => {
+    const { productId } = req.params;
+    const { id } = req;
 
+    try {
+        const product = await productModel.findById(productId);
+
+        if (!product) {
+            return responseReturn(res, 404, { error: 'Product not found' });
+        }
+
+        // Verify the product belongs to the seller
+        if (product.sellerId.toString() !== id) {
+            return responseReturn(res, 403, { error: 'Unauthorized to delete this product' });
+        }
+
+        // Optional: Delete images from Cloudinary
+        if (product.images && product.images.length > 0) {
+            cloudinary.config({
+                cloud_name: process.env.cloud_name,
+                api_key: process.env.api_key,
+                api_secret: process.env.api_secret,
+                secure: true
+            });
+
+            for (let i = 0; i < product.images.length; i++) {
+                const imageUrl = product.images[i];
+                const publicId = imageUrl.split('/').slice(-2).join('/').split('.')[0];
+                await cloudinary.uploader.destroy(publicId);
+            }
+        }
+
+        await productModel.findByIdAndDelete(productId);
+        responseReturn(res, 200, { message: 'Product Deleted Successfully' });
+
+    } catch (error) {
+        responseReturn(res, 500, { error: error.message });
+    }
+  }
+  // End Method
 
 }
 
