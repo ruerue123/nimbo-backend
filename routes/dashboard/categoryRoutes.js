@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { authMiddleware } = require('../../middlewares/authMiddleware');
-const productController = require('../../controllers/dashboard/productController'); 
+// categoryRoutes.js
+const categoryController = require('../../controllers/dashboard/categoryController');
+
 
 
 // Routes
