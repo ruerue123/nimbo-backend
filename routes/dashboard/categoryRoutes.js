@@ -1,10 +1,15 @@
-const categoryController = require('../../controllers/dashboard/categoryController') 
-const { authMiddleware } = require('../../middlewares/authMiddleware')
-const router = require('express').Router()
+const express = require('express');
+const router = express.Router();
+const { authMiddleware } = require('../../middlewares/authMiddleware');
+const productController = require('../../controllers/dashboard/productController'); 
 
-router.post('/category-add',authMiddleware, categoryController.add_category) 
-router.get('/category-get',authMiddleware, categoryController.get_category) 
-router.put('/category-update/:id',authMiddleware, categoryController.update_category) 
-router.delete('/category/:id', categoryController.deleteCategory) 
 
-module.exports = router
+// Routes
+router.post('/product-add', authMiddleware, productController.add_product);
+router.get('/products-get', authMiddleware, productController.products_get);
+router.get('/product-get/:productId', authMiddleware, productController.product_get);
+router.post('/product-update', authMiddleware, productController.product_update);
+router.post('/product-image-update', authMiddleware, productController.product_image_update);
+router.delete('/product-delete/:productId', authMiddleware, productController.delete_product);
+
+module.exports = router;
