@@ -72,6 +72,23 @@ class CategoryController {
             responseReturn(res, 500, { error: 'Internal Server Error' });
         }
     }
+    // Get a single category by ID
+async category_get(req, res) {
+    try {
+        const { categoryId } = req.params;
+        const category = await categoryModel.findById(categoryId);
+
+        if (!category) {
+            return responseReturn(res, 404, { error: 'Category not found' });
+        }
+
+        responseReturn(res, 200, { category });
+
+    } catch (error) {
+        console.error(error);
+        responseReturn(res, 500, { error: 'Internal Server Error' });
+    }
+}
 
     // Update an existing category
     async update_category(req, res) {
@@ -114,8 +131,9 @@ class CategoryController {
         });
     }
 
+    
     // Delete a category
-    async delete_category(req, res) {
+    async deleteCategory(req, res) {
         try {
             const { id } = req.params;
             const deletedCategory = await categoryModel.findByIdAndDelete(id);
