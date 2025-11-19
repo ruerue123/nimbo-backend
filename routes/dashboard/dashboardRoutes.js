@@ -1,4 +1,4 @@
-const dashboardController = require('../../controllers/dasboard/dashboardController') 
+const dashboardController = require('../../controllers/dashboard/dashboardController') 
 const { authMiddleware } = require('../../middlewares/authMiddleware')
 const router = require('express').Router()
   
