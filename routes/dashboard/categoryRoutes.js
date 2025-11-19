@@ -5,9 +5,9 @@ const categoryController = require('../../controllers/dashboard/categoryControll
 
 // Category Routes
 router.post('/category-add', authMiddleware, categoryController.add_category);
-router.get('/categories-get', authMiddleware, categoryController.categories_get);
+router.get('/categories-get', authMiddleware, categoryController.get_category);
 router.get('/category-get/:categoryId', authMiddleware, categoryController.category_get);
-router.post('/category-update', authMiddleware, categoryController.category_update);
-router.delete('/category-delete/:categoryId', authMiddleware, categoryController.delete_category);
+router.post('/category-update/:id', authMiddleware, categoryController.update_category);
+router.delete('/category-delete/:id', authMiddleware, categoryController.deleteCategory);
 
 module.exports = router;
