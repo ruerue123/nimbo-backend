@@ -2,7 +2,8 @@ const formidable = require("formidable");
 const { responseReturn } = require("../../utiles/response");
 const cloudinary = require("cloudinary").v2;
 const productModel = require("../../models/productModel");
-const sellerModel = require("../../models/vendorModel"); // <-- make sure path is correct
+const sellerModel = require("../../models/sellerModel");
+
 
 class productController {
 
