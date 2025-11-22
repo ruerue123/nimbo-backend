@@ -26,7 +26,7 @@ class productController {
       }
 
       // Auto-set shop name from vendor profile
-      const shopName = seller.shopInfo?.storeName || seller.name;
+      const shopName = seller.shopInfo?.shopName || seller.name;
 
       name = name.trim();
       const slug = name.split(" ").join("-");
