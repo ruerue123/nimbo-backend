@@ -25,6 +25,7 @@
     "jsonwebtoken": "^9.0.2",
     "moment": "^2.29.4",
     "mongoose": "^8.0.3",
+    "paynow": "^2.2.2",
     "socket.io": "^4.7.2",
     "stripe": "^14.18.0",
     "uuid": "^9.0.1"

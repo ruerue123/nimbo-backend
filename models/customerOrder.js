@@ -29,6 +29,15 @@ const customerOrder = new Schema({
         type : String,
         required : true
     },
+    // Paynow payment fields
+    paynowPollUrl : {
+        type : String,
+        default : ''
+    },
+    paynowReference : {
+        type : String,
+        default : ''
+    }
 },{timestamps : true})
 
 module.exports = model('customerOrders',customerOrder)
