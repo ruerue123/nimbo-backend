@@ -125,14 +125,24 @@ class productController {
   // Update product
   product_update = async (req, res) => {
     const form = formidable();
-    
+
     form.parse(req, async (err, fields) => {
       if (err) {
         return responseReturn(res, 400, { error: err.message });
       }
 
       try {
-        let { productId, name, category, description, stock, price, discount, brand } = fields;
+        // Handle formidable v3 array values
+        const getValue = (field) => Array.isArray(field) ? field[0] : field;
+
+        let productId = getValue(fields.productId);
+        let name = getValue(fields.name);
+        let category = getValue(fields.category);
+        let description = getValue(fields.description);
+        let stock = getValue(fields.stock);
+        let price = getValue(fields.price);
+        let discount = getValue(fields.discount);
+        let brand = getValue(fields.brand);
 
         name = name.trim();
         const slug = name.split(" ").join("-");
@@ -163,6 +173,25 @@ class productController {
     });
   };
 
+  // Delete product
+  product_delete = async (req, res) => {
+    try {
+      const { productId } = req.params;
+
+      const product = await productModel.findByIdAndDelete(productId);
+
+      if (!product) {
+        return responseReturn(res, 404, { error: 'Product not found' });
+      }
+
+      responseReturn(res, 200, { message: 'Product deleted successfully' });
+
+    } catch (error) {
+      console.error(error);
+      responseReturn(res, 500, { error: 'Internal Server Error' });
+    }
+  };
+
   // Update product images
   product_image_update = async (req, res) => {
     const form = formidable({ multiples: true });
@@ -173,8 +202,13 @@ class productController {
       }
 
       try {
-        const { productId, oldImage } = fields;
-        let { newImage } = files;
+        // Handle formidable v3 array values
+        const getValue = (field) => Array.isArray(field) ? field[0] : field;
+        const getFile = (file) => Array.isArray(file) ? file[0] : file;
+
+        const productId = getValue(fields.productId);
+        const oldImage = getValue(fields.oldImage);
+        let newImage = getFile(files.newImage);
 
         cloudinary.config({
           cloud_name: process.env.cloud_name,
@@ -194,13 +228,13 @@ class productController {
         }
 
         // Replace old image with new one
-        const images = product.images.map(img => 
+        const images = product.images.map(img =>
           img === oldImage ? result.url : img
         );
 
-        await productModel.findByIdAndUpdate(productId, { images });
+        const updatedProduct = await productModel.findByIdAndUpdate(productId, { images }, { new: true });
 
-        responseReturn(res, 200, { message: 'Product image updated successfully' });
+        responseReturn(res, 200, { product: updatedProduct, message: 'Product image updated successfully' });
 
       } catch (error) {
         console.error(error);
