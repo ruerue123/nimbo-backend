@@ -65,7 +65,7 @@ class CategoryController {
 
             const totalCategory = await categoryModel.countDocuments(query);
 
-            responseReturn(res, 200, { categories, totalCategory });
+            responseReturn(res, 200, { categorys: categories, totalCategory });
 
         } catch (error) {
             console.error(error.message);
