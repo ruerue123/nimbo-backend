@@ -12,8 +12,8 @@ const { mongo: {ObjectId}} = require('mongoose')
 // Paynow Integration
 const { Paynow } = require('paynow')
 const paynow = new Paynow('22615', '9245e4f0-0955-4eae-9c9c-9ddf27cbfde9')
-paynow.resultUrl = process.env.PAYNOW_RESULT_URL
-paynow.returnUrl = process.env.PAYNOW_RETURN_URL
+paynow.resultUrl = process.env.PAYNOW_RESULT_URL || 'https://nimbo-backend.onrender.com/api/order/paynow/result'
+paynow.returnUrl = process.env.PAYNOW_RETURN_URL || 'https://www.nimbo.co.zw/order/confirm'
 
 class orderController{
 
@@ -311,16 +311,44 @@ class orderController{
     const { status } = req.body
 
     try {
-        await authOrderModel.findByIdAndUpdate(orderId,{
+        // Update the seller's order
+        const sellerOrder = await authOrderModel.findByIdAndUpdate(orderId,{
             delivery_status: status
-        })
-        responseReturn(res,200, {message: 'order status updated successfully'})
+        }, { new: true })
+
+        if (sellerOrder) {
+            // Also update the main customer order
+            // Check if all seller orders for this customer order have the same status
+            const allSellerOrders = await authOrderModel.find({
+                orderId: sellerOrder.orderId
+            })
+
+            // If all seller orders have the same status, update customer order
+            const allSameStatus = allSellerOrders.every(o => o.delivery_status === status)
+            if (allSameStatus) {
+                await customerOrder.findByIdAndUpdate(sellerOrder.orderId, {
+                    delivery_status: status
+                })
+            } else {
+                // Set to the most advanced status among all seller orders
+                const statusPriority = ['pending', 'order_received', 'processing', 'dispatched', 'delivered', 'cancelled']
+                let highestStatus = 'pending'
+                for (const order of allSellerOrders) {
+                    if (statusPriority.indexOf(order.delivery_status) > statusPriority.indexOf(highestStatus)) {
+                        highestStatus = order.delivery_status
+                    }
+                }
+                await customerOrder.findByIdAndUpdate(sellerOrder.orderId, {
+                    delivery_status: highestStatus
+                })
+            }
+        }
+
+        responseReturn(res,200, {message: 'Order status updated successfully'})
     } catch (error) {
         console.log('get seller Order error' + error.message)
         responseReturn(res,500, {message: 'internal server error'})
     }
-
-
   }
   // End Method 
 
@@ -407,18 +435,46 @@ class orderController{
     const { orderId } = req.params
     try {
         const order = await customerOrder.findById(orderId)
-        if (!order || !order.paynowPollUrl) {
-            return responseReturn(res, 404, { error: 'Order or payment not found' })
+        if (!order) {
+            return responseReturn(res, 404, { error: 'Order not found' })
+        }
+
+        // If already paid, return success
+        if (order.payment_status === 'paid') {
+            return responseReturn(res, 200, { paid: true, status: 'paid' })
+        }
+
+        // If no pollUrl, check if it was COD
+        if (!order.paynowPollUrl) {
+            if (order.payment_status === 'cod') {
+                return responseReturn(res, 200, { paid: false, status: 'cod' })
+            }
+            return responseReturn(res, 404, { error: 'Payment not found' })
         }
 
         const status = await paynow.pollTransaction(order.paynowPollUrl)
 
-        if (status.paid) {
+        // Paynow returns status: 'Paid', 'Awaiting Delivery', 'Delivered', 'Created',
+        // 'Sent', 'Cancelled', 'Disputed', 'Refunded', etc.
+        const paidStatuses = ['Paid', 'paid', 'Awaiting Delivery', 'Delivered']
+        const failedStatuses = ['Cancelled', 'cancelled', 'Failed', 'failed', 'Refunded']
+
+        if (status.paid || paidStatuses.includes(status.status)) {
             // Payment confirmed - process order
             await this.processPayment(orderId)
             responseReturn(res, 200, { paid: true, status: 'paid' })
+        } else if (failedStatuses.includes(status.status)) {
+            // Payment failed
+            await customerOrder.findByIdAndUpdate(orderId, {
+                delivery_status: 'cancelled'
+            })
+            await authOrderModel.updateMany({ orderId: new ObjectId(orderId) }, {
+                delivery_status: 'cancelled'
+            })
+            responseReturn(res, 200, { paid: false, status: 'failed' })
         } else {
-            responseReturn(res, 200, { paid: false, status: status.status })
+            // Still pending
+            responseReturn(res, 200, { paid: false, status: status.status || 'pending' })
         }
     } catch (error) {
         console.log('Status check error:', error.message)
@@ -430,13 +486,28 @@ class orderController{
   // Paynow result URL callback
   paynow_result = async (req, res) => {
     try {
+        console.log('Paynow result callback:', req.body)
         const { reference, paynowreference, status } = req.body
 
         // Extract orderId from reference (format: Order-{orderId})
         const orderId = reference?.replace('Order-', '')
 
-        if (orderId && (status === 'Paid' || status === 'paid')) {
+        if (!orderId) {
+            return res.status(400).send('Invalid reference')
+        }
+
+        const paidStatuses = ['Paid', 'paid', 'Awaiting Delivery', 'Delivered', 'Success', 'success']
+        const failedStatuses = ['Cancelled', 'cancelled', 'Failed', 'failed', 'Refunded']
+
+        if (paidStatuses.includes(status)) {
             await this.processPayment(orderId)
+        } else if (failedStatuses.includes(status)) {
+            await customerOrder.findByIdAndUpdate(orderId, {
+                delivery_status: 'cancelled'
+            })
+            await authOrderModel.updateMany({ orderId: new ObjectId(orderId) }, {
+                delivery_status: 'cancelled'
+            })
         }
 
         res.status(200).send('OK')
@@ -450,9 +521,13 @@ class orderController{
   // Process payment - common method for confirming payment
   processPayment = async (orderId) => {
     try {
-        await customerOrder.findByIdAndUpdate(orderId, { payment_status: 'paid' })
+        await customerOrder.findByIdAndUpdate(orderId, {
+            payment_status: 'paid',
+            delivery_status: 'order_received'
+        })
         await authOrderModel.updateMany({ orderId: new ObjectId(orderId) }, {
-            payment_status: 'paid', delivery_status: 'pending'
+            payment_status: 'paid',
+            delivery_status: 'order_received'
         })
 
         const cuOrder = await customerOrder.findById(orderId)
@@ -497,11 +572,11 @@ class orderController{
         // Mark as COD - unpaid but confirmed for delivery
         await customerOrder.findByIdAndUpdate(orderId, {
             payment_status: 'cod',
-            delivery_status: 'pending'
+            delivery_status: 'order_received'
         })
         await authOrderModel.updateMany({ orderId: new ObjectId(orderId) }, {
             payment_status: 'cod',
-            delivery_status: 'pending'
+            delivery_status: 'order_received'
         })
 
         responseReturn(res, 200, { message: 'Order confirmed for Cash on Delivery' })
