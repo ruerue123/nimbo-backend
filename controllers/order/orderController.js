@@ -5,6 +5,7 @@ const myShopWallet = require('../../models/myShopWallet')
 const sellerWallet = require('../../models/sellerWallet')
 
 const cardModel = require('../../models/cardModel')
+const productModel = require('../../models/productModel')
 const moment = require("moment")
 const { responseReturn } = require('../../utiles/response')
 const { mongo: {ObjectId}} = require('mongoose')
@@ -535,6 +536,15 @@ class orderController{
             orderId: new ObjectId(orderId)
         })
 
+        // Deduct stock for each product in the order
+        if (cuOrder && cuOrder.products) {
+            for (const product of cuOrder.products) {
+                await productModel.findByIdAndUpdate(product._id, {
+                    $inc: { stock: -product.quantity }
+                })
+            }
+        }
+
         const time = moment(Date.now()).format('l')
         const splitTime = time.split('/')
 
@@ -578,6 +588,15 @@ class orderController{
             payment_status: 'cod',
             delivery_status: 'order_received'
         })
+
+        // Deduct stock for COD orders as well
+        if (order.products) {
+            for (const product of order.products) {
+                await productModel.findByIdAndUpdate(product._id, {
+                    $inc: { stock: -product.quantity }
+                })
+            }
+        }
 
         responseReturn(res, 200, { message: 'Order confirmed for Cash on Delivery' })
     } catch (error) {
