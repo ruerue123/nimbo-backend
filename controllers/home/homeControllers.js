@@ -1,12 +1,19 @@
 const categoryModel = require('../../models/categoryModel')
 const productModel = require('../../models/productModel')
 const reviewModel = require('../../models/reviewModel')
+const sellerModel = require('../../models/sellerModel')
 const { responseReturn } = require("../../utiles/response")
 const queryProducts = require('../../utiles/queryProducts')
 const moment = require('moment')
 const { mongo: {ObjectId}} = require('mongoose')
 
 class homeControllers{
+
+    // Helper method to get active seller IDs
+    getActiveSellerIds = async () => {
+        const activeSellers = await sellerModel.find({ status: 'active' }).select('_id')
+        return activeSellers.map(seller => seller._id)
+    }
 
     formateProduct = (products) => {
         const productArray = [];
@@ -41,20 +48,24 @@ class homeControllers{
 
     get_products = async(req, res) => {
         try {
-            const products = await productModel.find({}).limit(12).sort({
+            // Get only products from active sellers
+            const activeSellerIds = await this.getActiveSellerIds()
+            const activeFilter = { sellerId: { $in: activeSellerIds } }
+
+            const products = await productModel.find(activeFilter).limit(12).sort({
                 createdAt: -1
             })
-            const allProduct1 = await productModel.find({}).limit(9).sort({
+            const allProduct1 = await productModel.find(activeFilter).limit(9).sort({
                 createdAt: -1
             })
             const latest_product = this.formateProduct(allProduct1);
-            
-            const allProduct2 = await productModel.find({}).limit(9).sort({
+
+            const allProduct2 = await productModel.find(activeFilter).limit(9).sort({
                 rating: -1
             })
             const topRated_product = this.formateProduct(allProduct2);
-           
-            const allProduct3 = await productModel.find({}).limit(9).sort({
+
+            const allProduct3 = await productModel.find(activeFilter).limit(9).sort({
                 discount: -1
             })
             const discount_product = this.formateProduct(allProduct3);
@@ -65,7 +76,7 @@ class homeControllers{
                 topRated_product,
                 discount_product
             })
-            
+
         } catch (error) {
             console.log(error.message)
         }
@@ -74,15 +85,19 @@ class homeControllers{
 
    price_range_product = async (req, res) => {
     try {
+        // Get only products from active sellers
+        const activeSellerIds = await this.getActiveSellerIds()
+        const activeFilter = { sellerId: { $in: activeSellerIds } }
+
         const priceRange = {
             low: 0,
             high: 0,
         }
-        const products = await productModel.find({}).limit(9).sort({
+        const products = await productModel.find(activeFilter).limit(9).sort({
             createdAt: -1 // 1 for asc -1 is for Desc
         })
         const latest_product = this.formateProduct(products);
-        const getForPrice = await productModel.find({}).sort({
+        const getForPrice = await productModel.find(activeFilter).sort({
             'price': 1
         })
         if (getForPrice.length > 0) {
@@ -93,7 +108,7 @@ class homeControllers{
             latest_product,
             priceRange
         })
-        
+
     } catch (error) {
         console.log(error.message)
     }
@@ -107,24 +122,27 @@ query_products = async (req, res) => {
     req.query.parPage = parPage
 
     try {
-        const products = await productModel.find({}).sort({
+        // Get only products from active sellers
+        const activeSellerIds = await this.getActiveSellerIds()
+        const activeFilter = { sellerId: { $in: activeSellerIds } }
+
+        const products = await productModel.find(activeFilter).sort({
             createdAt: -1
         })
         const totalProduct = new queryProducts(products, req.query).categoryQuery().ratingQuery().searchQuery().priceQuery().sortByPrice().countProducts();
 
         const result = new queryProducts(products, req.query).categoryQuery().ratingQuery().priceQuery().searchQuery().sortByPrice().skip().limit().getProducts();
-        
+
         responseReturn(res, 200, {
             products: result,
             totalProduct,
             parPage
         })
 
-        
     } catch (error) {
         console.log(error.message)
     }
- 
+
 }
 // end method 
 
@@ -132,33 +150,35 @@ product_details = async (req, res) => {
     const { slug } = req.params
     try {
         const product = await productModel.findOne({slug})
-        
+
+        if (!product) {
+            return responseReturn(res, 404, { error: 'Product not found' })
+        }
+
+        // Check if the seller is active - if not, don't show the product
+        const seller = await sellerModel.findById(product.sellerId)
+        if (!seller || seller.status !== 'active') {
+            return responseReturn(res, 404, { error: 'Product not available' })
+        }
+
+        // Get only products from active sellers for related/more products
+        const activeSellerIds = await this.getActiveSellerIds()
+
         const relatedProducts = await productModel.find({
-            $and: [{
-                _id: {
-                    $ne: product.id
-                }
-            },
-            {
-                category: {
-                    $eq: product.category 
-                }
-            }
-           ]
+            $and: [
+                { _id: { $ne: product.id } },
+                { category: { $eq: product.category } },
+                { sellerId: { $in: activeSellerIds } }
+            ]
         }).limit(12)
+
         const moreProducts = await productModel.find({
-            $and: [{
-                _id: {
-                    $ne: product.id
-                }
-            },
-            {
-                sellerId: {
-                    $eq: product.sellerId
-                }
-            }
-           ]
+            $and: [
+                { _id: { $ne: product.id } },
+                { sellerId: { $eq: product.sellerId } }
+            ]
         }).limit(3)
+
         responseReturn(res, 200, {
             product,
             relatedProducts,
