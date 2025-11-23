@@ -28,5 +28,6 @@ router.put('/admin/order-status/update/:orderId',orderController.admin_order_sta
 router.get('/seller/orders/:sellerId',orderController.get_seller_orders)
 router.get('/seller/order/:orderId',orderController.get_seller_order)
 router.put('/seller/order-status/update/:orderId',orderController.seller_order_status_update)
+router.put('/seller/order-delivery-details/:orderId',orderController.update_delivery_details)
 
 module.exports = router  

@@ -351,7 +351,24 @@ class orderController{
         responseReturn(res,500, {message: 'internal server error'})
     }
   }
-  // End Method 
+  // End Method
+
+  // Update delivery details for an order
+  update_delivery_details = async(req,res) => {
+    const {orderId} = req.params
+    const { deliveryDetails } = req.body
+
+    try {
+        await authOrderModel.findByIdAndUpdate(orderId, {
+            deliveryDetails: deliveryDetails
+        })
+        responseReturn(res, 200, { message: 'Delivery details updated successfully' })
+    } catch (error) {
+        console.log('Update delivery details error:', error.message)
+        responseReturn(res, 500, { message: 'Internal server error' })
+    }
+  }
+  // End Method
 
   // Create Paynow web payment
   create_paynow_payment = async (req, res) => {
