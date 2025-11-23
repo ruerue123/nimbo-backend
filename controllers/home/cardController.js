@@ -116,11 +116,11 @@ class cardController{
         } 
       }
 
-      responseReturn(res,200,{ 
+      responseReturn(res,200,{
         card_products: p,
         price: calculatePrice,
         card_product_count,
-        shipping_fee: 20 * p.length,
+        shipping_fee: 5, // Flat $5 delivery fee
         outOfStockProduct,
         buy_product_item
       })
