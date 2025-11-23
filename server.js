@@ -32,15 +32,23 @@ let admin = {};
 
 // User helpers
 const addUser = (customerId, socketId, userInfo) => {
-    const exists = allCustomer.some(u => u.customerId === customerId);
-    if (!exists) {
+    const existingIndex = allCustomer.findIndex(u => u.customerId === customerId);
+    if (existingIndex !== -1) {
+        // Update socket ID if user reconnects
+        allCustomer[existingIndex].socketId = socketId;
+        allCustomer[existingIndex].userInfo = userInfo;
+    } else {
         allCustomer.push({ customerId, socketId, userInfo });
     }
 };
 
 const addSeller = (sellerId, socketId, userInfo) => {
-    const exists = allSeller.some(s => s.sellerId === sellerId);
-    if (!exists) {
+    const existingIndex = allSeller.findIndex(s => s.sellerId === sellerId);
+    if (existingIndex !== -1) {
+        // Update socket ID if seller reconnects
+        allSeller[existingIndex].socketId = socketId;
+        allSeller[existingIndex].userInfo = userInfo;
+    } else {
         allSeller.push({ sellerId, socketId, userInfo });
     }
 };
@@ -63,26 +71,36 @@ io.on('connection', (soc) => {
     soc.on('add_user', (customerId, userInfo) => {
         addUser(customerId, soc.id, userInfo);
         io.emit('activeSeller', allSeller);
-        console.log(`👤 Customer added: ${customerId}`);
+        io.emit('activeCustomer', allCustomer);
+        console.log(`👤 Customer added: ${customerId}, Total customers: ${allCustomer.length}`);
     });
 
     soc.on('add_seller', (sellerId, userInfo) => {
         addSeller(sellerId, soc.id, userInfo);
         io.emit('activeSeller', allSeller);
-        console.log(`🛍️ Seller added: ${sellerId}`);
+        io.emit('activeCustomer', allCustomer);
+        console.log(`🛍️ Seller added: ${sellerId}, Total sellers: ${allSeller.length}`);
     });
 
     soc.on('send_seller_message', (msg) => {
-        const customer = findCustomer(msg.receiverId);
+        // Support both receiverId and receverId (typo in DB model)
+        const customerId = msg.receiverId || msg.receverId;
+        const customer = findCustomer(customerId);
+        console.log('📤 Seller -> Customer:', customerId, customer ? '✓ found' : '✗ not found', 'All customers:', allCustomer.map(c => c.customerId));
         if (customer) {
             io.to(customer.socketId).emit('seller_message', msg);
+            console.log('✅ Message delivered to customer socket:', customer.socketId);
         }
     });
 
     soc.on('send_customer_message', (msg) => {
-        const seller = findSeller(msg.receiverId);
+        // Support both receiverId and receverId (typo in DB model)
+        const sellerId = msg.receiverId || msg.receverId;
+        const seller = findSeller(sellerId);
+        console.log('📤 Customer -> Seller:', sellerId, seller ? '✓ found' : '✗ not found', 'All sellers:', allSeller.map(s => s.sellerId));
         if (seller) {
             io.to(seller.socketId).emit('customer_message', msg);
+            console.log('✅ Message delivered to seller socket:', seller.socketId);
         }
     });
 
@@ -90,6 +108,17 @@ io.on('connection', (soc) => {
         const seller = findSeller(msg.receiverId);
         if (seller) {
             io.to(seller.socketId).emit('received_admin_message', msg);
+        }
+    });
+
+    // Delivery details update - notify customer when seller updates delivery info
+    soc.on('delivery_details_updated', (data) => {
+        const { customerId, orderId, deliveryDetails } = data;
+        const customer = findCustomer(customerId);
+        console.log('📦 Delivery details updated for customer:', customerId, customer ? '✓ found' : '✗ not found');
+        if (customer) {
+            io.to(customer.socketId).emit('order_delivery_updated', { orderId, deliveryDetails });
+            console.log('✅ Delivery update sent to customer:', customer.socketId);
         }
     });
 
@@ -107,6 +136,7 @@ io.on('connection', (soc) => {
         delete admin.email;
         delete admin.password;
         io.emit('activeSeller', allSeller);
+        io.emit('activeCustomer', allCustomer);
         console.log('🛡️ Admin connected');
     });
 
@@ -114,6 +144,7 @@ io.on('connection', (soc) => {
         console.log('❌ Socket disconnected:', soc.id);
         remove(soc.id);
         io.emit('activeSeller', allSeller);
+        io.emit('activeCustomer', allCustomer);
     });
 });
 
