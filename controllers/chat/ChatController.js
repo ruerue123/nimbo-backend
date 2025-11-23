@@ -4,6 +4,7 @@ const sellerCustomerModel = require('../../models/chat/sellerCustomerModel')
 const sellerCustomerMessage = require('../../models/chat/sellerCustomerMessage')
 const adminSellerMessage = require('../../models/chat/adminSellerMessage')
 const { responseReturn } = require('../../utiles/response')
+const { sendNewMessageEmail } = require('../../utiles/emailService')
 
 
 class ChatController{
@@ -128,7 +129,7 @@ class ChatController{
                 senderId: userId,
                 senderName: name,
                 receverId: sellerId,
-                message : text 
+                message : text
             })
 
             const data = await sellerCustomerModel.findOne({ myId : userId })
@@ -167,8 +168,15 @@ class ChatController{
                 },
                 {
                     myFriends1
-                } 
+                }
             )
+
+            // Send email notification to seller (async, don't wait)
+            const seller = await sellerModel.findById(sellerId)
+            if (seller?.email) {
+                const chatLink = `${process.env.DASHBOARD_URL || 'https://nimbo-dashboard.vercel.app'}/seller/dashboard/chat-customer/${userId}`
+                sendNewMessageEmail(seller.email, name, text, chatLink).catch(err => console.log('Email error:', err))
+            }
 
             responseReturn(res, 201,{message})
 

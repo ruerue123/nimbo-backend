@@ -363,14 +363,25 @@ class orderController{
             deliveryDetails: deliveryDetails
         }, { new: true })
 
+        let customerId = null
+
         // Also update the customer order with delivery details
         if (updatedOrder && updatedOrder.orderId) {
-            await customerOrder.findByIdAndUpdate(updatedOrder.orderId, {
+            const customerOrderData = await customerOrder.findByIdAndUpdate(updatedOrder.orderId, {
                 deliveryDetails: deliveryDetails
-            })
+            }, { new: true })
+
+            if (customerOrderData) {
+                customerId = customerOrderData.customerId
+            }
         }
 
-        responseReturn(res, 200, { message: 'Delivery details updated successfully', order: updatedOrder })
+        responseReturn(res, 200, {
+            message: 'Delivery details updated successfully',
+            order: updatedOrder,
+            customerId: customerId,
+            customerOrderId: updatedOrder?.orderId
+        })
     } catch (error) {
         console.log('Update delivery details error:', error.message)
         responseReturn(res, 500, { message: 'Internal server error' })
