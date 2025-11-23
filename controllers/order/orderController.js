@@ -359,10 +359,18 @@ class orderController{
     const { deliveryDetails } = req.body
 
     try {
-        await authOrderModel.findByIdAndUpdate(orderId, {
+        const updatedOrder = await authOrderModel.findByIdAndUpdate(orderId, {
             deliveryDetails: deliveryDetails
-        })
-        responseReturn(res, 200, { message: 'Delivery details updated successfully' })
+        }, { new: true })
+
+        // Also update the customer order with delivery details
+        if (updatedOrder && updatedOrder.orderId) {
+            await customerOrder.findByIdAndUpdate(updatedOrder.orderId, {
+                deliveryDetails: deliveryDetails
+            })
+        }
+
+        responseReturn(res, 200, { message: 'Delivery details updated successfully', order: updatedOrder })
     } catch (error) {
         console.log('Update delivery details error:', error.message)
         responseReturn(res, 500, { message: 'Internal server error' })
