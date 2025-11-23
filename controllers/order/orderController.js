@@ -10,10 +10,10 @@ const moment = require("moment")
 const { responseReturn } = require('../../utiles/response')
 const { mongo: {ObjectId}} = require('mongoose')
 
-// Paynow Integration
+// Paynow Integration - Live Keys
 const { Paynow } = require('paynow')
-const paynow = new Paynow('22615', '9245e4f0-0955-4eae-9c9c-9ddf27cbfde9')
-paynow.resultUrl = process.env.PAYNOW_RESULT_URL || 'https://nimbo-backend.onrender.com/api/order/paynow/result'
+const paynow = new Paynow('22623', 'dadc3c40-beba-45bd-8747-45349865a8ec')
+paynow.resultUrl = process.env.PAYNOW_RESULT_URL || 'https://nimbo-backend-1.onrender.com/api/order/paynow/result'
 paynow.returnUrl = process.env.PAYNOW_RETURN_URL || 'https://www.nimbo.co.zw/order/confirm'
 
 class orderController{
@@ -428,7 +428,7 @@ class orderController{
   }
   // End Method
 
-  // Create Paynow mobile payment (Ecocash/OneMoney)
+  // Create Paynow mobile payment (Ecocash/Innbucks)
   create_paynow_mobile_payment = async (req, res) => {
     const { orderId, price, email, phone, method } = req.body
     try {
