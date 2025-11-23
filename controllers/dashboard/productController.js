@@ -3,6 +3,7 @@ const { responseReturn } = require("../../utiles/response");
 const cloudinary = require("cloudinary").v2;
 const productModel = require("../../models/productModel");
 const sellerModel = require("../../models/sellerModel");
+const blogController = require("../home/blogController");
 
 
 class productController {
@@ -52,7 +53,7 @@ class productController {
           allImageUrl.push(result.url);
         }
 
-        await productModel.create({
+        const product = await productModel.create({
           sellerId: id,
           name,
           slug,
@@ -65,6 +66,11 @@ class productController {
           images: allImageUrl,
           brand: brand.trim(),
         });
+
+        // Create blog post for products with significant discount (10%+)
+        if (parseInt(discount) >= 10) {
+          await blogController.create_product_blog(product, seller);
+        }
 
         responseReturn(res, 201, { message: "Product Added Successfully" });
       } catch (error) {

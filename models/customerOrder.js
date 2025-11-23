@@ -37,6 +37,15 @@ const customerOrder = new Schema({
     paynowReference : {
         type : String,
         default : ''
+    },
+    // Delivery details (synced from seller orders)
+    deliveryDetails: {
+        courierName: { type: String, default: '' },
+        courierPhone: { type: String, default: '' },
+        estimatedDate: { type: String, default: '' },
+        estimatedTime: { type: String, default: '' },
+        trackingNumber: { type: String, default: '' },
+        notes: { type: String, default: '' }
     }
 },{timestamps : true})
 

@@ -2,6 +2,7 @@ const formidable = require("formidable")
 const { responseReturn } = require("../../utiles/response")
 const cloudinary = require('cloudinary').v2
 const sellerModel = require('../../models/sellerModel')
+const blogController = require('../home/blogController')
 
 class sellerController{ 
 
@@ -41,8 +42,18 @@ class sellerController{
      seller_status_update = async (req, res) => {
         const {sellerId, status} = req.body
         try {
+            // Get seller's previous status to check if newly approved
+            const previousSeller = await sellerModel.findById(sellerId)
+            const wasNotActive = previousSeller?.status !== 'active'
+
             await sellerModel.findByIdAndUpdate(sellerId,{status})
             const seller = await sellerModel.findById(sellerId)
+
+            // Create blog post when seller is approved (status changed to active)
+            if (status === 'active' && wasNotActive) {
+                await blogController.create_seller_blog(seller)
+            }
+
             responseReturn(res, 200,{ seller,  message: 'Seller Status Updated Successfully' })
         } catch (error) {
             responseReturn(res, 500,{ error: error.message })
