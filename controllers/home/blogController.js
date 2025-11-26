@@ -102,7 +102,7 @@ class blogController {
 
     // Create blog post (used internally for auto-posts)
     create_blog = async (req, res) => {
-        const { title, content, excerpt, image, category, sellerId, sellerName, productId, productName, tags, featured } = req.body
+        const { title, content, excerpt, image, category, sellerId, sellerName, productId, productName, productSlug, tags, featured } = req.body
 
         try {
             // Generate slug from title
@@ -122,6 +122,7 @@ class blogController {
                 sellerName,
                 productId,
                 productName,
+                productSlug: productSlug || '',
                 tags: tags || [],
                 featured: featured || false,
                 status: 'published'
@@ -231,6 +232,7 @@ class blogController {
                 sellerName: sellerInfo?.shopInfo?.shopName || '',
                 productId: productInfo._id,
                 productName: productInfo.name,
+                productSlug: productInfo.slug || '',
                 tags: [productInfo.category, hasDiscount ? 'sale' : 'new arrival', productInfo.brand].filter(Boolean),
                 status: 'published',
                 featured: hasDiscount && productInfo.discount >= 20

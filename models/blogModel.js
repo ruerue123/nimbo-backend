@@ -47,6 +47,10 @@ const blogSchema = new Schema({
         type: String,
         default: ''
     },
+    productSlug: {
+        type: String,
+        default: ''
+    },
     // Tags for filtering
     tags: [{
         type: String
