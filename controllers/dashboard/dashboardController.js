@@ -67,13 +67,16 @@ class dashboardController{
                 }
             ])
 
-        const totalProduct = await productModel.find({ 
+        const totalProduct = await productModel.find({
           sellerId: new ObjectId(id) }).countDocuments()
-        
-        const totalOrder = await authOrder.find({
-            sellerId: new ObjectId(id) }).countDocuments()
 
-        const totalPendingOrder = await authOrder .find({
+        // Only count orders with successful payments (paid or cod)
+        const totalOrder = await authOrder.find({
+            sellerId: new ObjectId(id),
+            payment_status: { $in: ['paid', 'cod'] }
+        }).countDocuments()
+
+        const totalPendingOrder = await authOrder.find({
             $and:[
                 {
                     sellerId: {
@@ -81,8 +84,13 @@ class dashboardController{
                     }
                 },
                 {
-                    delivery_status :{
+                    delivery_status: {
                         $eq: 'pending'
+                    }
+                },
+                {
+                    payment_status: {
+                        $in: ['paid', 'cod']
                     }
                 }
             ]
@@ -92,17 +100,19 @@ class dashboardController{
                 {
                     senderId: {
                         $eq: id
-                    } 
+                    }
                 },{
                     receverId: {
                         $eq: id
                     }
                 }
             ]
-        }).limit(3)   
+        }).limit(3)
 
+        // Only show recent orders with successful payments
         const recentOrders = await authOrder.find({
-            sellerId: new ObjectId(id)
+            sellerId: new ObjectId(id),
+            payment_status: { $in: ['paid', 'cod'] }
         }).limit(5)
 
         responseReturn(res, 200, {

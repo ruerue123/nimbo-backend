@@ -1,4 +1,4 @@
-const homeControllers = require('../../controllers/home/homeControllers') 
+const homeControllers = require('../../controllers/home/homeControllers')
 const router = require('express').Router()
 
 router.get('/get-categorys',homeControllers.get_categorys)
@@ -9,6 +9,11 @@ router.get('/product-details/:slug',homeControllers.product_details)
 
 router.post('/customer/submit-review',homeControllers.submit_review)
 router.get('/customer/get-reviews/:productId',homeControllers.get_reviews)
-  
+
+// Shop routes
+router.get('/get-shops',homeControllers.get_shops)
+router.get('/shop-details/:shopId',homeControllers.get_shop_details)
+router.get('/shop-products/:shopId',homeControllers.query_shop_products)
+
 
 module.exports = router 

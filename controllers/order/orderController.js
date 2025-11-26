@@ -276,22 +276,25 @@ class orderController{
 
         try {
             if (searchValue) {
-                
+
             } else {
+                // Only show orders with successful payments (paid or cod)
                 const orders = await authOrderModel.find({
                     sellerId,
+                    payment_status: { $in: ['paid', 'cod'] }
                 }).skip(skipPage).limit(parPage).sort({ createdAt: -1})
                 const totalOrder = await authOrderModel.find({
-                    sellerId
+                    sellerId,
+                    payment_status: { $in: ['paid', 'cod'] }
                 }).countDocuments()
                 responseReturn(res,200, {orders,totalOrder})
             }
-            
+
         } catch (error) {
          console.log('get seller Order error' + error.message)
          responseReturn(res,500, {message: 'internal server error'})
         }
-        
+
   }
   // End Method 
 

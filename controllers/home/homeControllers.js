@@ -2,6 +2,7 @@ const categoryModel = require('../../models/categoryModel')
 const productModel = require('../../models/productModel')
 const reviewModel = require('../../models/reviewModel')
 const sellerModel = require('../../models/sellerModel')
+const authOrder = require('../../models/authOrder')
 const { responseReturn } = require("../../utiles/response")
 const queryProducts = require('../../utiles/queryProducts')
 const moment = require('moment')
@@ -306,6 +307,154 @@ get_reviews = async (req, res) => {
         
     } catch (error) {
         console.log(error.message)
+    }
+}
+// end method
+
+// Get all active shops with stats (for shop listing)
+get_shops = async (req, res) => {
+    try {
+        const { limit } = req.query
+        const limitNum = limit ? parseInt(limit) : null
+
+        // Get all active sellers
+        let query = sellerModel.find({ status: 'active' })
+
+        if (limitNum) {
+            query = query.limit(limitNum)
+        }
+
+        const sellers = await query.sort({ createdAt: -1 })
+
+        // Get stats for each seller
+        const shopsWithStats = await Promise.all(sellers.map(async (seller) => {
+            // Count products
+            const productCount = await productModel.countDocuments({
+                sellerId: seller._id
+            })
+
+            // Count total sales (paid and cod orders)
+            const totalSales = await authOrder.countDocuments({
+                sellerId: seller._id,
+                payment_status: { $in: ['paid', 'cod'] }
+            })
+
+            return {
+                _id: seller._id,
+                shopInfo: seller.shopInfo,
+                image: seller.image,
+                createdAt: seller.createdAt,
+                productCount,
+                totalSales
+            }
+        }))
+
+        responseReturn(res, 200, {
+            shops: shopsWithStats
+        })
+
+    } catch (error) {
+        console.log('get_shops error:', error.message)
+        responseReturn(res, 500, { message: 'Internal server error' })
+    }
+}
+// end method
+
+// Get single shop details with categories
+get_shop_details = async (req, res) => {
+    const { shopId } = req.params
+
+    try {
+        // Get seller details
+        const seller = await sellerModel.findById(shopId)
+
+        if (!seller || seller.status !== 'active') {
+            return responseReturn(res, 404, { message: 'Shop not found' })
+        }
+
+        // Get shop stats
+        const productCount = await productModel.countDocuments({
+            sellerId: seller._id
+        })
+
+        const totalSales = await authOrder.countDocuments({
+            sellerId: seller._id,
+            payment_status: { $in: ['paid', 'cod'] }
+        })
+
+        // Get unique categories for this shop's products
+        const shopCategories = await productModel.distinct('category', {
+            sellerId: seller._id
+        })
+
+        responseReturn(res, 200, {
+            shop: {
+                _id: seller._id,
+                shopInfo: seller.shopInfo,
+                image: seller.image,
+                createdAt: seller.createdAt,
+                productCount,
+                totalSales,
+                categories: shopCategories
+            }
+        })
+
+    } catch (error) {
+        console.log('get_shop_details error:', error.message)
+        responseReturn(res, 500, { message: 'Internal server error' })
+    }
+}
+// end method
+
+// Query products by shop
+query_shop_products = async (req, res) => {
+    const { shopId } = req.params
+    const { category, sortPrice, pageNumber } = req.query
+
+    const parPage = 12
+    const skipPage = parPage * (parseInt(pageNumber) - 1)
+
+    try {
+        // Check if shop exists and is active
+        const seller = await sellerModel.findById(shopId)
+
+        if (!seller || seller.status !== 'active') {
+            return responseReturn(res, 404, { message: 'Shop not found' })
+        }
+
+        // Build query
+        let query = {
+            sellerId: new ObjectId(shopId)
+        }
+
+        if (category) {
+            query.category = category
+        }
+
+        // Sort options
+        let sortQuery = { createdAt: -1 }
+        if (sortPrice === 'low-to-high') {
+            sortQuery = { price: 1 }
+        } else if (sortPrice === 'high-to-low') {
+            sortQuery = { price: -1 }
+        }
+
+        const products = await productModel.find(query)
+            .skip(skipPage)
+            .limit(parPage)
+            .sort(sortQuery)
+
+        const totalProduct = await productModel.countDocuments(query)
+
+        responseReturn(res, 200, {
+            products,
+            totalProduct,
+            parPage
+        })
+
+    } catch (error) {
+        console.log('query_shop_products error:', error.message)
+        responseReturn(res, 500, { message: 'Internal server error' })
     }
 }
 // end method
