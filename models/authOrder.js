@@ -30,7 +30,7 @@ const authSchema = new Schema({
         required : true
     },
     shippingInfo: {
-        type: String,
+        type: Schema.Types.Mixed,
         required : true
     },
     delivery_status: {
