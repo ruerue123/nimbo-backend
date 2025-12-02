@@ -81,7 +81,10 @@ class orderController{
                 }
 
                 authorOrderData.push({
-                    orderId: order.id,sellerId,
+                    orderId: order.id,
+                    sellerId,
+                    customerId: userId,
+                    customerName: shippingInfo?.name || '',
                     products: storePor,
                     price:pri,
                     payment_status: 'unpaid',
