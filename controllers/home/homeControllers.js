@@ -53,7 +53,7 @@ class homeControllers{
             const activeSellerIds = await this.getActiveSellerIds()
             const activeFilter = { sellerId: { $in: activeSellerIds } }
 
-            const products = await productModel.find(activeFilter).limit(12).sort({
+            const products = await productModel.find(activeFilter).limit(20).sort({
                 createdAt: -1
             })
             const allProduct1 = await productModel.find(activeFilter).limit(9).sort({
