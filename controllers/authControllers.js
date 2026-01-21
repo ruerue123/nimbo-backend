@@ -232,8 +232,8 @@ class authControllers{
         try {
             res.clearCookie('accessToken', {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
-                sameSite: 'strict' // Prevent CSRF in cross-site contexts
+                secure: true,
+                sameSite: 'None'
             });
 
             responseReturn(res, 200, { message: 'Logout success' });
