@@ -29,8 +29,11 @@ class customerAuthController{
                     email: createCustomer.email,
                     method: createCustomer.method 
                 })
-                res.cookie('customerToken',token,{
-                    expires : new Date(Date.now() + 7*24*60*60*1000 )
+                res.cookie('customerToken', token, {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'None',
+                    maxAge: 7 * 24 * 60 * 60 * 1000
                 })
                 responseReturn(res,201,{message: "User Register Success", token})
             }
@@ -53,8 +56,11 @@ class customerAuthController{
                     email: customer.email,
                     method: customer.method 
                 })
-                res.cookie('customerToken',token,{
-                    expires : new Date(Date.now() + 7*24*60*60*1000 )
+                res.cookie('customerToken', token, {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: 'None',
+                    maxAge: 7 * 24 * 60 * 60 * 1000
                 })
                 responseReturn(res, 201,{ message :  'User Login Success',token})
                 
@@ -72,10 +78,12 @@ class customerAuthController{
   // End Method
 
   customer_logout = async(req, res) => {
-    res.cookie('customerToken',"",{
-        expires : new Date(Date.now())
+    res.clearCookie('customerToken', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'None'
     })
-    responseReturn(res, 200,{ message :  'Logout Success'})
+    responseReturn(res, 200, { message: 'Logout Success' })
   }
     // End Method
 

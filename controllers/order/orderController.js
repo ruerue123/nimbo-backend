@@ -10,11 +10,17 @@ const moment = require("moment")
 const { responseReturn } = require('../../utiles/response')
 const { mongo: {ObjectId}} = require('mongoose')
 
-// Paynow Integration - Live Keys
+// Paynow Integration
 const { Paynow } = require('paynow')
-const paynow = new Paynow('22623', 'REDACTED_PAYNOW_KEY')
-paynow.resultUrl = process.env.PAYNOW_RESULT_URL || 'https://nimbo-backend-1.onrender.com/api/order/paynow/result'
-paynow.returnUrl = process.env.PAYNOW_RETURN_URL || 'https://www.nimbo.co.zw/order/confirm'
+if (!process.env.PAYNOW_INTEGRATION_ID || !process.env.PAYNOW_INTEGRATION_KEY) {
+    throw new Error('PAYNOW_INTEGRATION_ID and PAYNOW_INTEGRATION_KEY are required')
+}
+if (!process.env.PAYNOW_RESULT_URL || !process.env.PAYNOW_RETURN_URL) {
+    throw new Error('PAYNOW_RESULT_URL and PAYNOW_RETURN_URL are required')
+}
+const paynow = new Paynow(process.env.PAYNOW_INTEGRATION_ID, process.env.PAYNOW_INTEGRATION_KEY)
+paynow.resultUrl = process.env.PAYNOW_RESULT_URL
+paynow.returnUrl = process.env.PAYNOW_RETURN_URL
 
 class orderController{
 

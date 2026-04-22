@@ -39,8 +39,6 @@ class authControllers{
                 maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
             });
 
-            console.log("LOGIN TOKEN:", token);
-
             return responseReturn(res, 200, {
                 token,
                 message: "Login Success"
@@ -84,7 +82,6 @@ class authControllers{
             });
 
 
-            console.log('TOKEN:', token);
             responseReturn(res, 200, { token, message: 'Login success' });
         } catch (error) {
             responseReturn(res, 500, { error: error.message });
@@ -245,26 +242,38 @@ class authControllers{
 
 // End Method 
 
-/// Change Password 
-change_password = async (req,res) => {
-    const {email, old_password, new_password} = req.body;
-   // console.log(email,old_password,new_password)
-   try {
-    const user = await sellerModel.findOne({email}).select('+password');
-    if (!user) return res.status(404).json({message: 'User not found'});
+/// Change Password
+change_password = async (req, res) => {
+    const { old_password, new_password } = req.body;
+    const { id, role } = req;
 
-    const isMatch = await bcrpty.compare(old_password, user.password);
-    if(!isMatch) return res.status(400).json({message: 'Incorrect old password'});
+    if (!old_password || !new_password) {
+        return responseReturn(res, 400, { error: 'Old and new password are required' });
+    }
+    if (typeof new_password !== 'string' || new_password.length < 8) {
+        return responseReturn(res, 400, { error: 'New password must be at least 8 characters' });
+    }
+    if (old_password === new_password) {
+        return responseReturn(res, 400, { error: 'New password must differ from old password' });
+    }
 
-    user.password = await bcrpty.hash(new_password, 10);
-    await user.save();
-    res.json({ message: 'Password changed successfully'});
+    try {
+        const Model = role === 'admin' ? adminModel : sellerModel;
+        const user = await Model.findById(id).select('+password');
+        if (!user) return responseReturn(res, 404, { error: 'User not found' });
 
-   } catch (error) {
-    res.status(500).json({message: 'Server Error'});
-   } 
+        const isMatch = await bcrypt.compare(old_password, user.password);
+        if (!isMatch) return responseReturn(res, 400, { error: 'Incorrect old password' });
+
+        user.password = await bcrypt.hash(new_password, 10);
+        await user.save();
+        return responseReturn(res, 200, { message: 'Password changed successfully' });
+    } catch (error) {
+        console.error('change_password error:', error.message);
+        return responseReturn(res, 500, { error: 'Server Error' });
+    }
 }
-// End Method 
+// End Method
 
 
 

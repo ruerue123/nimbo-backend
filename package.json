@@ -28,7 +28,6 @@
     "nodemailer": "^7.0.10",
     "paynow": "^2.2.2",
     "socket.io": "^4.7.2",
-    "stripe": "^14.18.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
