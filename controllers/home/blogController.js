@@ -1,5 +1,20 @@
 const blogModel = require('../../models/blogModel')
 const { responseReturn } = require('../../utiles/response')
+const DOMPurify = require('isomorphic-dompurify')
+
+// Restrict blog HTML to a safe subset. Stored-XSS from blogs would hit every
+// reader via the storefront's dangerouslySetInnerHTML, so sanitize on write.
+const BLOG_SANITIZE_CONFIG = {
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li', 'blockquote', 'a', 'img', 'code', 'pre', 'del', 'hr'],
+    ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+}
+
+const sanitizeBlogHtml = (html) => {
+    if (typeof html !== 'string') return ''
+    return DOMPurify.sanitize(html, BLOG_SANITIZE_CONFIG)
+}
 
 class blogController {
 
@@ -100,12 +115,20 @@ class blogController {
         }
     }
 
-    // Create blog post (used internally for auto-posts)
+    // Create blog post. Must be called through the admin-only route;
+    // content is sanitized to strip any script/event handlers before storage.
     create_blog = async (req, res) => {
+        if (req.role !== 'admin') {
+            return responseReturn(res, 403, { error: 'Forbidden' })
+        }
+
         const { title, content, excerpt, image, category, sellerId, sellerName, productId, productName, productSlug, tags, featured } = req.body
 
+        if (!title || typeof title !== 'string') {
+            return responseReturn(res, 400, { error: 'Title is required' })
+        }
+
         try {
-            // Generate slug from title
             const slug = title
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, '-')
@@ -114,7 +137,7 @@ class blogController {
             const blog = await blogModel.create({
                 title,
                 slug,
-                content,
+                content: sanitizeBlogHtml(content),
                 excerpt,
                 image,
                 category,
@@ -161,7 +184,7 @@ class blogController {
             await blogModel.create({
                 title,
                 slug,
-                content,
+                content: sanitizeBlogHtml(content),
                 excerpt,
                 image: sellerInfo.image || '',
                 category: 'new_seller',
@@ -224,7 +247,7 @@ class blogController {
             await blogModel.create({
                 title,
                 slug,
-                content,
+                content: sanitizeBlogHtml(content),
                 excerpt,
                 image: productInfo.images?.[0] || '',
                 category: hasDiscount ? 'promotion' : 'new_product',

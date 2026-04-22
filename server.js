@@ -3,13 +3,18 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
+const cookie = require('cookie');
+const jwt = require('jsonwebtoken');
 const { dbConnect } = require('./utiles/db');
 const http = require('http');
 const { Server } = require('socket.io');
 
+if (!process.env.SECRET) {
+    throw new Error('SECRET (JWT secret) is required');
+}
+
 const app = express();
 const server = http.createServer(app); // single server instance
-const isProduction = process.env.MODE === 'pro';
 
 const corsOptions = {
     origin: ['https://www.nimbo.co.zw', 'https://nimbo-dashboard.vercel.app'],
@@ -24,6 +29,34 @@ app.use(cookieParser());
 // Socket.IO setup
 const io = new Server(server, {
     cors: corsOptions
+});
+
+// Authenticate socket handshake from cookies. We attach identity to `soc.user`
+// (null if the client has no valid cookie) and enforce role/identity on
+// privileged events below. Without this, any client could emit add_admin
+// and be treated as admin.
+io.use((soc, next) => {
+    try {
+        const rawCookie = soc.handshake.headers.cookie;
+        if (!rawCookie) {
+            soc.user = null;
+            return next();
+        }
+        const cookies = cookie.parse(rawCookie);
+        const token = cookies.accessToken || cookies.customerToken;
+        if (!token) {
+            soc.user = null;
+            return next();
+        }
+        const decoded = jwt.verify(token, process.env.SECRET);
+        soc.user = {
+            id: decoded.id,
+            role: decoded.role || (cookies.customerToken ? 'customer' : null)
+        };
+    } catch (err) {
+        soc.user = null;
+    }
+    next();
 });
 
 let allCustomer = [];
@@ -69,6 +102,9 @@ io.on('connection', (soc) => {
     console.log('🔌 Socket connected:', soc.id);
 
     soc.on('add_user', (customerId, userInfo) => {
+        if (!soc.user || soc.user.role !== 'customer' || String(soc.user.id) !== String(customerId)) {
+            return;
+        }
         addUser(customerId, soc.id, userInfo);
         io.emit('activeSeller', allSeller);
         io.emit('activeCustomer', allCustomer);
@@ -76,6 +112,9 @@ io.on('connection', (soc) => {
     });
 
     soc.on('add_seller', (sellerId, userInfo) => {
+        if (!soc.user || soc.user.role !== 'seller' || String(soc.user.id) !== String(sellerId)) {
+            return;
+        }
         addSeller(sellerId, soc.id, userInfo);
         io.emit('activeSeller', allSeller);
         io.emit('activeCustomer', allCustomer);
@@ -83,28 +122,25 @@ io.on('connection', (soc) => {
     });
 
     soc.on('send_seller_message', (msg) => {
-        // Support both receiverId and receverId (typo in DB model)
+        if (!soc.user || soc.user.role !== 'seller') return;
         const customerId = msg.receiverId || msg.receverId;
         const customer = findCustomer(customerId);
-        console.log('📤 Seller -> Customer:', customerId, customer ? '✓ found' : '✗ not found', 'All customers:', allCustomer.map(c => c.customerId));
         if (customer) {
             io.to(customer.socketId).emit('seller_message', msg);
-            console.log('✅ Message delivered to customer socket:', customer.socketId);
         }
     });
 
     soc.on('send_customer_message', (msg) => {
-        // Support both receiverId and receverId (typo in DB model)
+        if (!soc.user || soc.user.role !== 'customer') return;
         const sellerId = msg.receiverId || msg.receverId;
         const seller = findSeller(sellerId);
-        console.log('📤 Customer -> Seller:', sellerId, seller ? '✓ found' : '✗ not found', 'All sellers:', allSeller.map(s => s.sellerId));
         if (seller) {
             io.to(seller.socketId).emit('customer_message', msg);
-            console.log('✅ Message delivered to seller socket:', seller.socketId);
         }
     });
 
     soc.on('send_message_admin_to_seller', (msg) => {
+        if (!soc.user || soc.user.role !== 'admin') return;
         const seller = findSeller(msg.receiverId);
         if (seller) {
             io.to(seller.socketId).emit('received_admin_message', msg);
@@ -113,22 +149,25 @@ io.on('connection', (soc) => {
 
     // Delivery details update - notify customer when seller updates delivery info
     soc.on('delivery_details_updated', (data) => {
+        if (!soc.user || soc.user.role !== 'seller') return;
         const { customerId, orderId, deliveryDetails } = data;
         const customer = findCustomer(customerId);
-        console.log('📦 Delivery details updated for customer:', customerId, customer ? '✓ found' : '✗ not found');
         if (customer) {
             io.to(customer.socketId).emit('order_delivery_updated', { orderId, deliveryDetails });
-            console.log('✅ Delivery update sent to customer:', customer.socketId);
         }
     });
 
     soc.on('send_message_seller_to_admin', (msg) => {
+        if (!soc.user || soc.user.role !== 'seller') return;
         if (admin.socketId) {
             io.to(admin.socketId).emit('received_seller_message', msg);
         }
     });
 
     soc.on('add_admin', (adminInfo) => {
+        if (!soc.user || soc.user.role !== 'admin') {
+            return;
+        }
         admin = {
             ...adminInfo,
             socketId: soc.id
