@@ -1,6 +1,7 @@
 const customerModel = require('../../models/customerModel')
 const { responseReturn } = require('../../utiles/response')
 const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
 const sellerCustomerModel = require('../../models/chat/sellerCustomerModel')
 const {createToken} = require('../../utiles/tokenCreate')
 
@@ -35,7 +36,15 @@ class customerAuthController{
                     sameSite: 'None',
                     maxAge: 7 * 24 * 60 * 60 * 1000
                 })
-                responseReturn(res,201,{message: "User Register Success", token})
+                responseReturn(res, 201, {
+                    message: "User Register Success",
+                    userInfo: {
+                        id: createCustomer.id,
+                        name: createCustomer.name,
+                        email: createCustomer.email,
+                        method: createCustomer.method
+                    }
+                })
             }
         } catch (error) {
             console.log(error.message)
@@ -62,7 +71,15 @@ class customerAuthController{
                     sameSite: 'None',
                     maxAge: 7 * 24 * 60 * 60 * 1000
                 })
-                responseReturn(res, 201,{ message :  'User Login Success',token})
+                responseReturn(res, 201, {
+                    message: 'User Login Success',
+                    userInfo: {
+                        id: customer.id,
+                        name: customer.name,
+                        email: customer.email,
+                        method: customer.method
+                    }
+                })
                 
             } else {
                 responseReturn(res, 404,{ error :  'Password Wrong'})
@@ -86,6 +103,29 @@ class customerAuthController{
     responseReturn(res, 200, { message: 'Logout Success' })
   }
     // End Method
+
+  // Returns the logged-in customer from the HttpOnly customerToken cookie.
+  // The storefront calls this on mount instead of reading the token from JS
+  // (which it can't anymore — the cookie is HttpOnly).
+  customer_me = async (req, res) => {
+    const { customerToken } = req.cookies || {}
+    if (!customerToken) {
+        return responseReturn(res, 401, { error: 'Not authenticated' })
+    }
+    try {
+        const decoded = jwt.verify(customerToken, process.env.SECRET)
+        return responseReturn(res, 200, {
+            userInfo: {
+                id: decoded.id,
+                name: decoded.name,
+                email: decoded.email,
+                method: decoded.method
+            }
+        })
+    } catch (err) {
+        return responseReturn(res, 401, { error: 'Invalid or expired session' })
+    }
+  }
 
 }
 

@@ -144,20 +144,23 @@ class authControllers{
         const { id, role } = req;
 
         try {
-            let userInfo;
+            let userDoc;
 
             if (role === 'admin') {
-                userInfo = await adminModel.findById(id).select('-password'); // Never return password
+                userDoc = await adminModel.findById(id).select('-password');
             } else if (role === 'seller') {
-                userInfo = await sellerModel.findById(id).select('-password');
+                userDoc = await sellerModel.findById(id).select('-password');
             } else {
                 return responseReturn(res, 403, { error: 'Unauthorized role' });
             }
 
-            if (!userInfo) {
+            if (!userDoc) {
                 return responseReturn(res, 404, { error: 'User not found' });
             }
 
+            // Include role in payload so the dashboard doesn't need to decode
+            // the JWT from localStorage to know what kind of user it has.
+            const userInfo = { ...userDoc.toObject(), role };
             return responseReturn(res, 200, { userInfo });
 
         } catch (error) {

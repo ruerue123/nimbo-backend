@@ -16,6 +16,10 @@ if (!process.env.SECRET) {
 const app = express();
 const server = http.createServer(app); // single server instance
 
+// Render/Vercel/etc. put us behind a proxy; needed for rate-limit and
+// secure-cookie handling to see the real client IP and protocol.
+app.set('trust proxy', 1);
+
 const corsOptions = {
     origin: ['https://www.nimbo.co.zw', 'https://nimbo-dashboard.vercel.app'],
     credentials: true
