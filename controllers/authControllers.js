@@ -245,20 +245,10 @@ class authControllers{
 
 // End Method 
 
-/// Change Password
+// Change Password — body shape enforced by validate(changePasswordSchema)
 change_password = async (req, res) => {
     const { old_password, new_password } = req.body;
     const { id, role } = req;
-
-    if (!old_password || !new_password) {
-        return responseReturn(res, 400, { error: 'Old and new password are required' });
-    }
-    if (typeof new_password !== 'string' || new_password.length < 8) {
-        return responseReturn(res, 400, { error: 'New password must be at least 8 characters' });
-    }
-    if (old_password === new_password) {
-        return responseReturn(res, 400, { error: 'New password must differ from old password' });
-    }
 
     try {
         const Model = role === 'admin' ? adminModel : sellerModel;

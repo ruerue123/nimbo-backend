@@ -1,20 +1,28 @@
 const orderController = require('../../controllers/order/orderController')
+const { validate } = require('../../middlewares/validate')
+const {
+    placeOrderSchema,
+    paynowCreateSchema,
+    paynowMobileSchema
+} = require('../../schemas/orderSchemas')
 const router = require('express').Router()
 
 // Customer
-router.post('/home/order/place-order',orderController.place_order)
-router.get('/home/coustomer/get-dashboard-data/:userId',orderController.get_customer_dashboard_data)
-router.get('/home/coustomer/get-orders/:customerId/:status',orderController.get_orders)
-router.get('/home/coustomer/get-order-details/:orderId',orderController.get_order_details)
+router.post('/home/order/place-order', validate(placeOrderSchema), orderController.place_order)
+router.get('/home/coustomer/get-dashboard-data/:userId', orderController.get_customer_dashboard_data)
+router.get('/home/coustomer/get-orders/:customerId/:status', orderController.get_orders)
+router.get('/home/coustomer/get-order-details/:orderId', orderController.get_order_details)
 
 // Paynow Payment Routes
-router.post('/order/paynow/create',orderController.create_paynow_payment)
-router.post('/order/paynow/mobile',orderController.create_paynow_mobile_payment)
-router.get('/order/paynow/status/:orderId',orderController.check_paynow_status)
-router.post('/order/paynow/result',orderController.paynow_result)
+router.post('/order/paynow/create', validate(paynowCreateSchema), orderController.create_paynow_payment)
+router.post('/order/paynow/mobile', validate(paynowMobileSchema), orderController.create_paynow_mobile_payment)
+router.get('/order/paynow/status/:orderId', orderController.check_paynow_status)
+// paynow_result is a server-to-server webhook posted by Paynow; schema not
+// applied because the payload shape is theirs, not ours.
+router.post('/order/paynow/result', orderController.paynow_result)
 
 // COD Route
-router.post('/order/cod/confirm/:orderId',orderController.confirm_cod_order)
+router.post('/order/cod/confirm/:orderId', orderController.confirm_cod_order)
 
 // Legacy confirm route
 router.get('/order/confirm/:orderId',orderController.order_confirm)
