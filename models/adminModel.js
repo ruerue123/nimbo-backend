@@ -21,6 +21,14 @@ const adminSchema = new Schema({
         type: String,
         default : 'admin'
     },
+    passwordResetTokenHash: {
+        type: String,
+        select: false
+    },
+    passwordResetExpires: {
+        type: Date,
+        select: false
+    }
 })
 
 module.exports = model('admins',adminSchema)

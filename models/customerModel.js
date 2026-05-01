@@ -17,7 +17,15 @@ const customerSchema = new Schema({
     method: {
         type: String,
         required : true
-    }, 
+    },
+    passwordResetTokenHash: {
+        type: String,
+        select: false
+    },
+    passwordResetExpires: {
+        type: Date,
+        select: false
+    }
 },{ timestamps: true })
 
 module.exports = model('customers',customerSchema)

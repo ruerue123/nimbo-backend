@@ -21,7 +21,12 @@ const server = http.createServer(app); // single server instance
 app.set('trust proxy', 1);
 
 const corsOptions = {
-    origin: ['https://www.nimbo.co.zw', 'https://nimbo-dashboard.vercel.app'],
+    origin: [
+        'https://www.nimbo.co.zw',
+        'https://nimbo-dashboard.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:3001'
+    ],
     credentials: true
 };
 

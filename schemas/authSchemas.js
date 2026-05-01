@@ -33,6 +33,19 @@ const changePasswordSchema = z.object({
     { path: ['new_password'], message: 'New password must differ from old password' }
 )
 
+const role = z.enum(['customer', 'seller', 'admin'])
+
+const forgotPasswordSchema = z.object({
+    email,
+    role
+}).strict()
+
+const resetPasswordSchema = z.object({
+    token: z.string().min(20).max(256),
+    role,
+    new_password: password
+}).strict()
+
 const profileInfoSchema = z.object({
     division: z.string().trim().max(120).optional().default(''),
     district: z.string().trim().max(120).optional().default(''),
@@ -46,5 +59,7 @@ module.exports = {
     customerRegisterSchema,
     sellerRegisterSchema,
     changePasswordSchema,
-    profileInfoSchema
+    profileInfoSchema,
+    forgotPasswordSchema,
+    resetPasswordSchema
 }

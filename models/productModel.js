@@ -49,8 +49,30 @@ const productSchema = new Schema({
     rating: {
         type: Number,
         default : 0
-    } 
-     
+    },
+    // Optional product variants. When `hasVariants` is true, `variants` is the
+    // source of truth for stock — the top-level `stock` field is recomputed as
+    // the sum of variant stocks at write time. When false, the product behaves
+    // as before (single stock count, no size/color choice at checkout).
+    hasVariants: {
+        type: Boolean,
+        default: false
+    },
+    sizes: [{
+        type: String,
+        trim: true,
+        maxlength: 32
+    }],
+    colors: [{
+        name: { type: String, trim: true, maxlength: 64 },
+        hex: { type: String, trim: true, maxlength: 16 }
+    }],
+    variants: [{
+        size: { type: String, trim: true, maxlength: 32, default: '' },
+        color: { type: String, trim: true, maxlength: 64, default: '' },
+        stock: { type: Number, min: 0, default: 0 }
+    }]
+
 }, {timestamps: true})
 
 productSchema.index({

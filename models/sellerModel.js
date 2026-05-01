@@ -38,6 +38,14 @@ const sellerSchema = new Schema({
         type: Object,
         default : {}
     },
+    passwordResetTokenHash: {
+        type: String,
+        select: false
+    },
+    passwordResetExpires: {
+        type: Date,
+        select: false
+    }
 },{ timestamps: true })
 
 sellerSchema.index({

@@ -1,4 +1,5 @@
 const authControllers = require('../controllers/authControllers')
+const passwordResetController = require('../controllers/passwordResetController')
 const { authMiddleware } = require('../middlewares/authMiddleware')
 const { authLimiter, registerLimiter } = require('../middlewares/rateLimiters')
 const { validate } = require('../middlewares/validate')
@@ -6,7 +7,9 @@ const {
     loginSchema,
     sellerRegisterSchema,
     changePasswordSchema,
-    profileInfoSchema
+    profileInfoSchema,
+    forgotPasswordSchema,
+    resetPasswordSchema
 } = require('../schemas/authSchemas')
 const router = require('express').Router()
 
@@ -18,6 +21,11 @@ router.post('/profile-image-upload', authMiddleware, authControllers.profile_ima
 router.post('/profile-info-add', authMiddleware, validate(profileInfoSchema), authControllers.profile_info_add)
 
 router.post('/change-password', authMiddleware, authLimiter, validate(changePasswordSchema), authControllers.change_password)
+
+// Password reset — single endpoint pair for all roles (customer/seller/admin).
+// The role is in the body so the controller can route to the right model.
+router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), passwordResetController.forgot_password)
+router.post('/reset-password', authLimiter, validate(resetPasswordSchema), passwordResetController.reset_password)
 
 router.get('/logout', authMiddleware, authControllers.logout)
 

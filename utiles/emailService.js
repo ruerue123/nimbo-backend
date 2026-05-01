@@ -130,6 +130,46 @@ const emailTemplates = {
         `
     }),
 
+    passwordReset: (resetUrl, accountLabel) => ({
+        subject: 'Reset your Nimbo password',
+        html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }
+                    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                    .header { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); padding: 30px; text-align: center; }
+                    .header h1 { color: white; margin: 0; font-size: 24px; }
+                    .content { padding: 30px; color: #374151; line-height: 1.6; }
+                    .cta-button { display: inline-block; background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: 600; margin: 20px 0; }
+                    .url-box { background: #f0fdfa; border-left: 4px solid #06b6d4; padding: 12px 16px; word-break: break-all; font-size: 12px; color: #0e7490; border-radius: 8px; }
+                    .footer { background: #f9fafb; padding: 20px; text-align: center; color: #6b7280; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Password Reset</h1>
+                    </div>
+                    <div class="content">
+                        <p>Hi${accountLabel ? ` ${accountLabel}` : ''},</p>
+                        <p>We received a request to reset the password for your Nimbo account. Click the button below to choose a new password. This link expires in 1 hour.</p>
+                        <p style="text-align: center;"><a href="${resetUrl}" class="cta-button">Reset Password</a></p>
+                        <p>If the button doesn't work, paste this URL into your browser:</p>
+                        <div class="url-box">${resetUrl}</div>
+                        <p style="margin-top: 24px; color: #6b7280; font-size: 14px;">If you didn't ask to reset your password, you can ignore this email — your password won't change.</p>
+                    </div>
+                    <div class="footer">
+                        <p>This email was sent from Nimbo Marketplace</p>
+                        <p>&copy; ${new Date().getFullYear()} Nimbo. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `
+    }),
+
     orderStatusUpdate: (orderInfo, newStatus) => ({
         subject: `Order #${orderInfo.orderId?.slice(-8) || 'N/A'} Status: ${newStatus.replace('_', ' ').toUpperCase()}`,
         html: `
@@ -209,9 +249,45 @@ const sendOrderStatusEmail = async (recipientEmail, orderInfo, newStatus) => {
     return sendEmail(recipientEmail, 'orderStatusUpdate', { orderInfo, newStatus })
 }
 
+// Password reset emails carry a one-shot URL, so we bypass the generic
+// `sendEmail` (which is shaped around chat/order args). When SMTP isn't
+// configured in dev we log the URL to the server console so resets are
+// still testable locally without real credentials.
+const sendPasswordResetEmail = async (recipientEmail, resetUrl, accountLabel = '') => {
+    const smtpConfigured = process.env.SMTP_USER && process.env.SMTP_PASS
+    if (!smtpConfigured) {
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('\n=== PASSWORD RESET (SMTP not configured) ===')
+            console.log(`To: ${recipientEmail}`)
+            console.log(`Reset URL: ${resetUrl}`)
+            console.log('============================================\n')
+            return { success: true, dev: true }
+        }
+        console.log('Password reset email skipped: SMTP not configured')
+        return { success: false, reason: 'SMTP not configured' }
+    }
+
+    try {
+        const transporter = createTransporter()
+        const { subject, html } = emailTemplates.passwordReset(resetUrl, accountLabel)
+        const info = await transporter.sendMail({
+            from: `"Nimbo Marketplace" <${process.env.SMTP_USER}>`,
+            to: recipientEmail,
+            subject,
+            html
+        })
+        console.log('Password reset email sent:', info.messageId)
+        return { success: true, messageId: info.messageId }
+    } catch (error) {
+        console.log('Password reset email error:', error.message)
+        return { success: false, error: error.message }
+    }
+}
+
 module.exports = {
     sendEmail,
     sendNewMessageEmail,
     sendDeliveryUpdateEmail,
-    sendOrderStatusEmail
+    sendOrderStatusEmail,
+    sendPasswordResetEmail
 }

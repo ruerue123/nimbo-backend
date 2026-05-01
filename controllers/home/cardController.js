@@ -6,33 +6,31 @@ const wishlistModel = require('../../models/wishlistModel')
 class cardController{
    
     add_to_card =  async(req, res) => {
-        const { userId, productId, quantity } = req.body
+        const { userId, productId, quantity, selectedSize = '', selectedColor = '' } = req.body
         try {
-            const product = await cardModel.findOne({
-                $and: [{
-                    productId : {
-                        $eq: productId
-                    }
-                },
-                {
-                    userId: {
-                        $eq: userId
-                    }
-                }
-            ]
+            // Variant-aware uniqueness: same product + same size + same color
+            // counts as the same line. Different variants of the same product
+            // become separate lines.
+            const existing = await cardModel.findOne({
+                userId,
+                productId,
+                selectedSize,
+                selectedColor
             })
 
-            if (product) {
-                responseReturn(res,404,{error: "Product Already Added To Card" })
+            if (existing) {
+                responseReturn(res, 404, { error: "Product Already Added To Card" })
             } else {
                 const product = await cardModel.create({
                     userId,
                     productId,
-                    quantity
+                    quantity,
+                    selectedSize,
+                    selectedColor
                 })
-                responseReturn(res,201,{message: "Added To Card Successfully" , product})
+                responseReturn(res, 201, { message: "Added To Card Successfully", product })
             }
-            
+
         } catch (error) {
             console.log(error.message)
         }

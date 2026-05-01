@@ -5,6 +5,64 @@ const productModel = require("../../models/productModel");
 const sellerModel = require("../../models/sellerModel");
 const blogController = require("../home/blogController");
 
+// Variant JSON arrives as a string in FormData. Parse defensively — sellers
+// who don't use variants leave the fields empty.
+const parseJsonField = (raw, fallback) => {
+    if (raw === undefined || raw === null || raw === '') return fallback
+    const value = Array.isArray(raw) ? raw[0] : raw
+    if (typeof value !== 'string') return value
+    try {
+        return JSON.parse(value)
+    } catch {
+        return fallback
+    }
+}
+
+const MAX_SIZES = 30
+const MAX_COLORS = 30
+const MAX_VARIANTS = MAX_SIZES * MAX_COLORS
+
+// Normalize variant inputs and compute the canonical top-level stock when
+// variants are in use. Returns { hasVariants, sizes, colors, variants, stock }
+// where `stock` is the sum across variants (or the seller-supplied number when
+// the product has no variants).
+const normalizeVariants = ({ sizesRaw, colorsRaw, variantsRaw, fallbackStock }) => {
+    const rawSizes = Array.isArray(sizesRaw) ? sizesRaw : []
+    const rawColors = Array.isArray(colorsRaw) ? colorsRaw : []
+    const rawVariants = Array.isArray(variantsRaw) ? variantsRaw : []
+
+    const sizes = rawSizes
+        .map(s => (typeof s === 'string' ? s.trim() : ''))
+        .filter(Boolean)
+        .slice(0, MAX_SIZES)
+
+    const colors = rawColors
+        .filter(c => c && typeof c === 'object')
+        .map(c => ({
+            name: typeof c.name === 'string' ? c.name.trim() : '',
+            hex: typeof c.hex === 'string' ? c.hex.trim() : ''
+        }))
+        .filter(c => c.name || c.hex)
+        .slice(0, MAX_COLORS)
+
+    const variants = rawVariants
+        .filter(v => v && typeof v === 'object')
+        .map(v => ({
+            size: typeof v.size === 'string' ? v.size.trim() : '',
+            color: typeof v.color === 'string' ? v.color.trim() : '',
+            stock: Math.max(0, parseInt(v.stock, 10) || 0)
+        }))
+        .filter(v => v.size || v.color)
+        .slice(0, MAX_VARIANTS)
+
+    const hasVariants = variants.length > 0
+    const stock = hasVariants
+        ? variants.reduce((sum, v) => sum + v.stock, 0)
+        : Math.max(0, parseInt(fallbackStock, 10) || 0)
+
+    return { hasVariants, sizes, colors, variants, stock }
+}
+
 
 class productController {
 
@@ -53,6 +111,13 @@ class productController {
           allImageUrl.push(result.url);
         }
 
+        const variantData = normalizeVariants({
+          sizesRaw: parseJsonField(field.sizes, []),
+          colorsRaw: parseJsonField(field.colors, []),
+          variantsRaw: parseJsonField(field.variants, []),
+          fallbackStock: stock
+        });
+
         const product = await productModel.create({
           sellerId: id,
           name,
@@ -60,11 +125,15 @@ class productController {
           shopName, // <= auto-populated from seller
           category: category.trim(),
           description: description.trim(),
-          stock: parseInt(stock),
+          stock: variantData.stock,
           price: parseInt(price),
           discount: parseInt(discount),
           images: allImageUrl,
           brand: brand.trim(),
+          hasVariants: variantData.hasVariants,
+          sizes: variantData.sizes,
+          colors: variantData.colors,
+          variants: variantData.variants,
         });
 
         // Create blog post for products with significant discount (10%+)
@@ -153,15 +222,26 @@ class productController {
         name = name.trim();
         const slug = name.split(" ").join("-");
 
+        const variantData = normalizeVariants({
+          sizesRaw: parseJsonField(fields.sizes, []),
+          colorsRaw: parseJsonField(fields.colors, []),
+          variantsRaw: parseJsonField(fields.variants, []),
+          fallbackStock: stock
+        });
+
         const updateData = {
           name,
           slug,
           category: category.trim(),
           description: description.trim(),
-          stock: parseInt(stock),
+          stock: variantData.stock,
           price: parseInt(price),
           discount: parseInt(discount),
           brand: brand.trim(),
+          hasVariants: variantData.hasVariants,
+          sizes: variantData.sizes,
+          colors: variantData.colors,
+          variants: variantData.variants,
         };
 
         const product = await productModel.findByIdAndUpdate(productId, updateData, { new: true });
