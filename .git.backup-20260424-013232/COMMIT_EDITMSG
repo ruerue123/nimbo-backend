@@ -1,0 +1,17 @@
+security: Zod request validation on auth/order/payment routes
+
+- New middlewares/validate.js runs a Zod schema against req.body, replies
+  400 with field-level errors on failure, and replaces req.body with the
+  parsed result so controllers see only schema-defined fields
+- New schemas/ dir with authSchemas, orderSchemas, paymentSchemas
+- Wired up on: admin/seller/customer login + register, change-password,
+  profile-info-add, place-order, paynow create + mobile, withdrawal
+  request, payment-request confirm
+- paynow/result webhook is not validated because the body shape is
+  Paynow's, not ours
+- place_order schema still accepts userId from the body (with a note) —
+  replacing it with req.user.id is a server-side authorization change
+  that belongs to Phase 3
+- Drop the now-redundant ad-hoc checks in change_password
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
