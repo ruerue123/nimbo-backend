@@ -21,11 +21,15 @@ const modelForRole = (role) => {
 
 const resetPathForRole = (role) => {
     // Customers reset on the storefront; sellers/admins on the dashboard.
+    // In production, fall back to the real public domains — never localhost,
+    // which would produce a dead link AND is a strong spam signal that can get
+    // the whole email filtered/dropped by Gmail.
+    const isProd = process.env.NODE_ENV === 'production' || process.env.MODE === 'pro'
     if (role === 'customer') {
-        const base = process.env.FRONTEND_URL || 'http://localhost:3000'
+        const base = process.env.FRONTEND_URL || (isProd ? 'https://nimbo.co.zw' : 'http://localhost:3000')
         return `${base.replace(/\/$/, '')}/reset-password`
     }
-    const base = process.env.DASHBOARD_URL || 'http://localhost:3001'
+    const base = process.env.DASHBOARD_URL || (isProd ? 'https://nimbo-dashboard.vercel.app' : 'http://localhost:3001')
     return `${base.replace(/\/$/, '')}/reset-password`
 }
 
