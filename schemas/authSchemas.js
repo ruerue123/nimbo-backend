@@ -46,6 +46,15 @@ const resetPasswordSchema = z.object({
     new_password: password
 }).strict()
 
+const verifyEmailSchema = z.object({
+    email,
+    code: z.string().trim().regex(/^\d{6}$/, 'Code must be 6 digits')
+}).strict()
+
+const resendVerificationSchema = z.object({
+    email
+}).strict()
+
 const profileInfoSchema = z.object({
     division: z.string().trim().max(120).optional().default(''),
     district: z.string().trim().max(120).optional().default(''),
@@ -61,5 +70,7 @@ module.exports = {
     changePasswordSchema,
     profileInfoSchema,
     forgotPasswordSchema,
-    resetPasswordSchema
+    resetPasswordSchema,
+    verifyEmailSchema,
+    resendVerificationSchema
 }

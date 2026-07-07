@@ -170,6 +170,42 @@ const emailTemplates = {
         `
     }),
 
+    verificationCode: (code, accountLabel) => ({
+        subject: 'Your Nimbo verification code',
+        html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }
+                    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                    .header { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); padding: 30px; text-align: center; }
+                    .header h1 { color: white; margin: 0; font-size: 24px; }
+                    .content { padding: 30px; color: #374151; line-height: 1.6; text-align: center; }
+                    .code { display: inline-block; background: #f0fdfa; border: 2px dashed #06b6d4; color: #0e7490; font-size: 36px; font-weight: 700; letter-spacing: 10px; padding: 18px 28px; border-radius: 12px; margin: 20px 0; }
+                    .footer { background: #f9fafb; padding: 20px; text-align: center; color: #6b7280; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Verify your email</h1>
+                    </div>
+                    <div class="content">
+                        <p>Hi${accountLabel ? ` ${accountLabel}` : ''}, welcome to Nimbo! Enter this code to verify your email and finish setting up your account:</p>
+                        <div class="code">${code}</div>
+                        <p style="color: #6b7280; font-size: 14px;">This code expires in 15 minutes. If you didn't create a Nimbo account, you can ignore this email.</p>
+                    </div>
+                    <div class="footer">
+                        <p>This email was sent from Nimbo Marketplace</p>
+                        <p>&copy; ${new Date().getFullYear()} Nimbo. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `
+    }),
+
     orderStatusUpdate: (orderInfo, newStatus) => ({
         subject: `Order #${orderInfo.orderId?.slice(-8) || 'N/A'} Status: ${newStatus.replace('_', ' ').toUpperCase()}`,
         html: `
@@ -284,10 +320,45 @@ const sendPasswordResetEmail = async (recipientEmail, resetUrl, accountLabel = '
     }
 }
 
+// Signup verification codes. Mirrors sendPasswordResetEmail: bypasses the
+// generic sendEmail (which is shaped around chat/order args) and logs the code
+// to the console in dev when SMTP isn't configured so signup stays testable.
+const sendVerificationEmail = async (recipientEmail, code, accountLabel = '') => {
+    const smtpConfigured = process.env.SMTP_USER && process.env.SMTP_PASS
+    if (!smtpConfigured) {
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('\n=== EMAIL VERIFICATION (SMTP not configured) ===')
+            console.log(`To: ${recipientEmail}`)
+            console.log(`Code: ${code}`)
+            console.log('================================================\n')
+            return { success: true, dev: true }
+        }
+        console.log('Verification email skipped: SMTP not configured')
+        return { success: false, reason: 'SMTP not configured' }
+    }
+
+    try {
+        const transporter = createTransporter()
+        const { subject, html } = emailTemplates.verificationCode(code, accountLabel)
+        const info = await transporter.sendMail({
+            from: `"Nimbo Marketplace" <${process.env.SMTP_USER}>`,
+            to: recipientEmail,
+            subject,
+            html
+        })
+        console.log('Verification email sent:', info.messageId)
+        return { success: true, messageId: info.messageId }
+    } catch (error) {
+        console.log('Verification email error:', error.message)
+        return { success: false, error: error.message }
+    }
+}
+
 module.exports = {
     sendEmail,
     sendNewMessageEmail,
     sendDeliveryUpdateEmail,
     sendOrderStatusEmail,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
+    sendVerificationEmail
 }
