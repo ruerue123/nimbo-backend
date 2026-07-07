@@ -20,6 +20,30 @@ const createTransporter = () => {
     })
 }
 
+// Resend HTTP API sender. Preferred over Gmail SMTP because it sends in <1s
+// over plain HTTPS (no SMTP handshake that Gmail throttles from cloud IPs) and
+// has proper transactional deliverability. Enabled by setting RESEND_API_KEY;
+// EMAIL_FROM should be a verified sender (e.g. "Nimbo <noreply@nimbo.co.zw>",
+// or "onboarding@resend.dev" while testing before domain verification).
+const resendConfigured = () => !!process.env.RESEND_API_KEY
+
+const sendViaResend = async (to, subject, html) => {
+    const from = process.env.EMAIL_FROM || 'Nimbo <onboarding@resend.dev>'
+    const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ from, to, subject, html })
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+        throw new Error(data?.message || `Resend API ${res.status}`)
+    }
+    return { success: true, messageId: data.id }
+}
+
 // Email templates
 const emailTemplates = {
     newMessage: (senderName, message, chatLink) => ({
@@ -296,6 +320,19 @@ const sendOrderStatusEmail = async (recipientEmail, orderInfo, newStatus) => {
 // configured in dev we log the URL to the server console so resets are
 // still testable locally without real credentials.
 const sendPasswordResetEmail = async (recipientEmail, resetUrl, accountLabel = '') => {
+    // Prefer Resend (fast HTTP API) when configured.
+    if (resendConfigured()) {
+        try {
+            const { subject, html } = emailTemplates.passwordReset(resetUrl, accountLabel)
+            const info = await sendViaResend(recipientEmail, subject, html)
+            console.log('Password reset email sent (resend):', info.messageId)
+            return info
+        } catch (error) {
+            console.log('Password reset email error (resend):', error.message)
+            return { success: false, error: error.message }
+        }
+    }
+
     const smtpConfigured = process.env.SMTP_USER && process.env.SMTP_PASS
     if (!smtpConfigured) {
         if (process.env.NODE_ENV !== 'production') {
@@ -330,6 +367,19 @@ const sendPasswordResetEmail = async (recipientEmail, resetUrl, accountLabel = '
 // generic sendEmail (which is shaped around chat/order args) and logs the code
 // to the console in dev when SMTP isn't configured so signup stays testable.
 const sendVerificationEmail = async (recipientEmail, code, accountLabel = '') => {
+    // Prefer Resend (fast HTTP API) when configured.
+    if (resendConfigured()) {
+        try {
+            const { subject, html } = emailTemplates.verificationCode(code, accountLabel)
+            const info = await sendViaResend(recipientEmail, subject, html)
+            console.log('Verification email sent (resend):', info.messageId)
+            return info
+        } catch (error) {
+            console.log('Verification email error (resend):', error.message)
+            return { success: false, error: error.message }
+        }
+    }
+
     const smtpConfigured = process.env.SMTP_USER && process.env.SMTP_PASS
     if (!smtpConfigured) {
         if (process.env.NODE_ENV !== 'production') {
