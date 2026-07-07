@@ -213,6 +213,11 @@ app.use('/api', require('./routes/dashboard/dashboardRoutes'));
 
 app.get('/', (req, res) => res.send('Hello Server'));
 
+// Lightweight health check for uptime pingers. No DB touch — just proves the
+// process is awake, so a cron ping every ~10min keeps Render's free tier from
+// spinning down (which causes the ~30-50s cold-start delay on the next request).
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok', uptime: process.uptime() }));
+
 // DB & Server start
 const PORT = process.env.PORT || 5000;
 dbConnect();
