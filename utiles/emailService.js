@@ -5,12 +5,18 @@ const nodemailer = require('nodemailer')
 const createTransporter = () => {
     return nodemailer.createTransport({
         host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: process.env.SMTP_PORT || 587,
+        port: Number(process.env.SMTP_PORT) || 587,
         secure: false,
         auth: {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS
-        }
+        },
+        // Gmail SMTP from cloud IPs (Render) can stall on the STARTTLS/greeting
+        // handshake. Cap each phase so a bad connection fails in seconds instead
+        // of hanging the request for a minute.
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000
     })
 }
 
