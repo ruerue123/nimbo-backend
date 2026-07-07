@@ -63,12 +63,14 @@ class passwordResetController {
             const params = new URLSearchParams({ token: rawToken, role })
             const resetUrl = `${resetPathForRole(role)}?${params.toString()}`
 
-            // Fire-and-forget: don't make the client wait on the SMTP handshake
-            // (Gmail from cloud IPs can be slow). The token is already saved, so
-            // the reset works once the email lands. Failures are logged inside
-            // sendPasswordResetEmail.
-            sendPasswordResetEmail(user.email, resetUrl, user.name || '')
-                .catch((err) => console.error('reset email send failed:', err.message))
+            // Await the send: on Render's free tier the instance can be frozen
+            // right after the response, killing an un-awaited background send.
+            // The transporter has short timeouts so this can't hang the request.
+            try {
+                await sendPasswordResetEmail(user.email, resetUrl, user.name || '')
+            } catch (err) {
+                console.error('reset email send failed:', err.message)
+            }
 
             return genericOk()
         } catch (error) {

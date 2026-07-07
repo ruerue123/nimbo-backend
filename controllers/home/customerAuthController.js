@@ -38,9 +38,14 @@ class customerAuthController{
                 myId: createCustomer.id
             })
 
-            // Fire-and-forget so signup isn't blocked on the SMTP handshake.
-            sendVerificationEmail(createCustomer.email, code, createCustomer.name)
-                .catch((err) => console.error('verification email send failed:', err.message))
+            // Await the send: on Render's free tier the instance can be frozen
+            // right after the response, killing an un-awaited background send.
+            // The transporter has short timeouts so this can't hang the request.
+            try {
+                await sendVerificationEmail(createCustomer.email, code, createCustomer.name)
+            } catch (err) {
+                console.error('verification email send failed:', err.message)
+            }
 
             // No auth cookie yet — the account is unverified. The storefront
             // routes the user to the verify screen using the returned email.
@@ -127,8 +132,11 @@ class customerAuthController{
             customer.emailVerificationCodeHash = hashCode(code)
             customer.emailVerificationExpires = new Date(Date.now() + CODE_TTL_MS)
             await customer.save()
-            sendVerificationEmail(customer.email, code, customer.name)
-                .catch((err) => console.error('resend verification email failed:', err.message))
+            try {
+                await sendVerificationEmail(customer.email, code, customer.name)
+            } catch (err) {
+                console.error('resend verification email failed:', err.message)
+            }
             return genericOk()
         } catch (error) {
             console.log(error.message)
