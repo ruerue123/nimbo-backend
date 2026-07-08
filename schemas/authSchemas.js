@@ -55,6 +55,12 @@ const resendVerificationSchema = z.object({
     email
 }).strict()
 
+const contactSchema = z.object({
+    name: z.string().trim().min(1, 'Name is required').max(120),
+    email,
+    message: z.string().trim().min(1, 'Message is required').max(5000)
+}).strict()
+
 const profileInfoSchema = z.object({
     division: z.string().trim().max(120).optional().default(''),
     district: z.string().trim().max(120).optional().default(''),
@@ -72,5 +78,6 @@ module.exports = {
     forgotPasswordSchema,
     resetPasswordSchema,
     verifyEmailSchema,
-    resendVerificationSchema
+    resendVerificationSchema,
+    contactSchema
 }

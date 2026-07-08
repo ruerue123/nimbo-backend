@@ -4,6 +4,7 @@ const reviewModel = require('../../models/reviewModel')
 const sellerModel = require('../../models/sellerModel')
 const authOrder = require('../../models/authOrder')
 const { responseReturn } = require("../../utiles/response")
+const { sendContactEmail } = require('../../utiles/emailService')
 const queryProducts = require('../../utiles/queryProducts')
 const moment = require('moment')
 const { mongo: {ObjectId}} = require('mongoose')
@@ -455,6 +456,21 @@ query_shop_products = async (req, res) => {
     } catch (error) {
         console.log('query_shop_products error:', error.message)
         responseReturn(res, 500, { message: 'Internal server error' })
+    }
+}
+// end method
+
+submit_contact = async (req, res) => {
+    const { name, email, message } = req.body
+    try {
+        const result = await sendContactEmail(name.trim(), email.trim(), message.trim())
+        if (!result.success) {
+            return responseReturn(res, 502, { error: 'Could not send your message. Please try again later.' })
+        }
+        responseReturn(res, 200, { message: 'Thanks for reaching out! We’ll get back to you soon.' })
+    } catch (error) {
+        console.log('submit_contact error:', error.message)
+        responseReturn(res, 500, { error: 'Something went wrong. Please try again.' })
     }
 }
 // end method

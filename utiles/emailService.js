@@ -410,11 +410,100 @@ const sendVerificationEmail = async (recipientEmail, code, accountLabel = '') =>
     }
 }
 
+// Contact-form submissions. Delivered to the support inbox with the visitor's
+// address as reply-to, so staff can reply straight from the notification.
+const contactTemplate = (name, email, message) => ({
+    subject: `New contact message from ${name}`,
+    html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }
+                .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                .header { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); padding: 24px; text-align: center; }
+                .header h1 { color: white; margin: 0; font-size: 20px; }
+                .content { padding: 24px; color: #374151; line-height: 1.6; }
+                .row { margin-bottom: 12px; }
+                .label { color: #06b6d4; font-weight: 600; }
+                .message-box { background: #f0fdfa; border-left: 4px solid #06b6d4; padding: 14px; border-radius: 8px; margin-top: 8px; white-space: pre-wrap; }
+                .footer { background: #f9fafb; padding: 16px; text-align: center; color: #6b7280; font-size: 12px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header"><h1>New Contact Message</h1></div>
+                <div class="content">
+                    <div class="row"><span class="label">Name:</span> ${name}</div>
+                    <div class="row"><span class="label">Email:</span> ${email}</div>
+                    <div class="row"><span class="label">Message:</span>
+                        <div class="message-box">${message}</div>
+                    </div>
+                </div>
+                <div class="footer">Sent from the Nimbo contact form</div>
+            </div>
+        </body>
+        </html>
+    `
+})
+
+const sendContactEmail = async (name, email, message) => {
+    const to = process.env.CONTACT_INBOX || 'info@nimbo.co.zw'
+    const { subject, html } = contactTemplate(name, email, message)
+
+    if (resendConfigured()) {
+        try {
+            const from = process.env.EMAIL_FROM || 'Nimbo <onboarding@resend.dev>'
+            const res = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ from, to, subject, html, reply_to: email })
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(data?.message || `Resend API ${res.status}`)
+            console.log('Contact email sent (resend):', data.id)
+            return { success: true, messageId: data.id }
+        } catch (error) {
+            console.log('Contact email error (resend):', error.message)
+            return { success: false, error: error.message }
+        }
+    }
+
+    const smtpConfigured = process.env.SMTP_USER && process.env.SMTP_PASS
+    if (!smtpConfigured) {
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('\n=== CONTACT MESSAGE (email not configured) ===')
+            console.log(`From: ${name} <${email}>`)
+            console.log(`Message: ${message}`)
+            console.log('==============================================\n')
+            return { success: true, dev: true }
+        }
+        return { success: false, reason: 'Email not configured' }
+    }
+
+    try {
+        const transporter = createTransporter()
+        const info = await transporter.sendMail({
+            from: `"Nimbo Contact" <${process.env.SMTP_USER}>`,
+            to, subject, html, replyTo: email
+        })
+        console.log('Contact email sent:', info.messageId)
+        return { success: true, messageId: info.messageId }
+    } catch (error) {
+        console.log('Contact email error:', error.message)
+        return { success: false, error: error.message }
+    }
+}
+
 module.exports = {
     sendEmail,
     sendNewMessageEmail,
     sendDeliveryUpdateEmail,
     sendOrderStatusEmail,
     sendPasswordResetEmail,
-    sendVerificationEmail
+    sendVerificationEmail,
+    sendContactEmail
 }
