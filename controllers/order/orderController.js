@@ -590,7 +590,8 @@ class orderController{
     await myShopWallet.create({
         amount: cuOrder.price,
         month,
-        year
+        year,
+        orderId: orderId.toString()
     })
 
     for (let i = 0; i < auOrder.length; i++) {
@@ -598,7 +599,8 @@ class orderController{
             sellerId: auOrder[i].sellerId.toString(),
             amount: auOrder[i].price,
             month,
-            year
+            year,
+            orderId: orderId.toString()
         })
     }
   }
