@@ -574,6 +574,35 @@ class orderController{
   }
   // End Method
 
+  // Credit the platform wallet (admin sales) and each seller's wallet for a
+  // completed order. Shared by online-payment and COD confirmation so both
+  // paths record earnings. Uses UTC date parts (Date object) so month/year are
+  // real numbers, not the string slices the old moment('l') split produced.
+  creditWallets = async (orderId) => {
+    const cuOrder = await customerOrder.findById(orderId)
+    const auOrder = await authOrderModel.find({ orderId: new ObjectId(orderId) })
+    if (!cuOrder) return
+
+    const now = new Date()
+    const month = now.getMonth() + 1
+    const year = now.getFullYear()
+
+    await myShopWallet.create({
+        amount: cuOrder.price,
+        month,
+        year
+    })
+
+    for (let i = 0; i < auOrder.length; i++) {
+        await sellerWallet.create({
+            sellerId: auOrder[i].sellerId.toString(),
+            amount: auOrder[i].price,
+            month,
+            year
+        })
+    }
+  }
+
   // Process payment - common method for confirming payment
   processPayment = async (orderId) => {
     try {
@@ -587,9 +616,6 @@ class orderController{
         })
 
         const cuOrder = await customerOrder.findById(orderId)
-        const auOrder = await authOrderModel.find({
-            orderId: new ObjectId(orderId)
-        })
 
         // Deduct stock for each product in the order
         if (cuOrder && cuOrder.products) {
@@ -600,23 +626,7 @@ class orderController{
             }
         }
 
-        const time = moment(Date.now()).format('l')
-        const splitTime = time.split('/')
-
-        await myShopWallet.create({
-            amount: cuOrder.price,
-            month: splitTime[0],
-            year: splitTime[2]
-        })
-
-        for (let i = 0; i < auOrder.length; i++) {
-            await sellerWallet.create({
-                sellerId: auOrder[i].sellerId.toString(),
-                amount: auOrder[i].price,
-                month: splitTime[0],
-                year: splitTime[2]
-            })
-        }
+        await this.creditWallets(orderId)
         return true
     } catch (error) {
         console.log('Process payment error:', error.message)
@@ -652,6 +662,11 @@ class orderController{
                 })
             }
         }
+
+        // Credit seller + admin wallets — COD is a confirmed sale, so earnings
+        // must be recorded just like a paid order (this was previously missed,
+        // so COD orders showed $0 in seller/admin totals).
+        await this.creditWallets(orderId)
 
         responseReturn(res, 200, { message: 'Order confirmed for Cash on Delivery' })
     } catch (error) {
