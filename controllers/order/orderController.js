@@ -605,6 +605,59 @@ class orderController{
     }
   }
 
+  // One-time backfill: credit wallets for completed (paid/cod) orders that were
+  // never credited. Token-guarded (BACKFILL_TOKEN env). Dry-run unless
+  // ?commit=true. Idempotent — skips orders already stamped with an orderId
+  // wallet row. Remove this route after running.
+  backfill_wallets = async (req, res) => {
+    const { token, commit } = req.query
+    if (!process.env.BACKFILL_TOKEN || token !== process.env.BACKFILL_TOKEN) {
+        return responseReturn(res, 403, { error: 'Forbidden' })
+    }
+    const doWrite = commit === 'true'
+    try {
+        const orders = await customerOrder.find({ payment_status: { $in: ['paid', 'cod'] } })
+        let credited = 0, skipped = 0, adminTotal = 0, sellerRows = 0
+        const details = []
+
+        for (const order of orders) {
+            const orderId = order._id.toString()
+            const existing = await myShopWallet.findOne({ orderId })
+            if (existing) { skipped++; continue }
+
+            const created = order.createdAt ? new Date(order.createdAt) : new Date()
+            const month = created.getMonth() + 1
+            const year = created.getFullYear()
+            const subs = await authOrderModel.find({ orderId: order._id })
+
+            if (doWrite) {
+                await myShopWallet.create({ amount: order.price, month, year, orderId })
+                for (const s of subs) {
+                    await sellerWallet.create({
+                        sellerId: s.sellerId.toString(), amount: s.price, month, year, orderId
+                    })
+                }
+            }
+            adminTotal += order.price
+            sellerRows += subs.length
+            credited++
+            details.push({ orderId: orderId.slice(-8), price: order.price, subOrders: subs.length })
+        }
+
+        return responseReturn(res, 200, {
+            mode: doWrite ? 'COMMITTED' : 'DRY RUN (add &commit=true to write)',
+            ordersCredited: credited,
+            alreadyCreditedSkipped: skipped,
+            adminSalesAdded: Number(adminTotal.toFixed(2)),
+            sellerWalletRowsCreated: sellerRows,
+            details
+        })
+    } catch (error) {
+        console.log('backfill_wallets error:', error.message)
+        return responseReturn(res, 500, { error: error.message })
+    }
+  }
+
   // Process payment - common method for confirming payment
   processPayment = async (orderId) => {
     try {
