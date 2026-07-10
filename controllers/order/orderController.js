@@ -270,15 +270,28 @@ class orderController{
     const { status } = req.body
 
     try {
+        const before = await customerOrder.findById(orderId)
         await customerOrder.findByIdAndUpdate(orderId, {
             delivery_status : status
         })
+
+        // Keep wallets in sync with cancellation. Only reverse/re-credit when a
+        // paid/cod order changes cancellation state — unpaid orders never had a
+        // credit to reverse.
+        if (before && ['paid', 'cod'].includes(before.payment_status)) {
+            if (status === 'cancelled' && before.delivery_status !== 'cancelled') {
+                await this.reverseWallets(orderId)
+            } else if (before.delivery_status === 'cancelled' && status !== 'cancelled') {
+                await this.creditWallets(orderId)
+            }
+        }
+
         responseReturn(res,200, {message: 'order Status change success'})
     } catch (error) {
         console.log('get admin status error' + error.message)
         responseReturn(res,500, {message: 'internal server error'})
     }
-     
+
   }
   // End Method 
 
@@ -336,6 +349,11 @@ class orderController{
             delivery_status: status
         }, { new: true })
 
+        // Capture the customer order's cancellation state before we recompute it.
+        const beforeCustomer = sellerOrder
+            ? await customerOrder.findById(sellerOrder.orderId)
+            : null
+
         if (sellerOrder) {
             // Also update the main customer order
             // Check if all seller orders for this customer order have the same status
@@ -361,6 +379,19 @@ class orderController{
                 await customerOrder.findByIdAndUpdate(sellerOrder.orderId, {
                     delivery_status: highestStatus
                 })
+            }
+
+            // Reconcile wallets against the customer order's new cancellation
+            // state (only for paid/cod orders that were actually credited).
+            const afterCustomer = await customerOrder.findById(sellerOrder.orderId)
+            if (afterCustomer && ['paid', 'cod'].includes(afterCustomer.payment_status)) {
+                const wasCancelled = beforeCustomer?.delivery_status === 'cancelled'
+                const nowCancelled = afterCustomer.delivery_status === 'cancelled'
+                if (nowCancelled && !wasCancelled) {
+                    await this.reverseWallets(sellerOrder.orderId)
+                } else if (wasCancelled && !nowCancelled) {
+                    await this.creditWallets(sellerOrder.orderId)
+                }
             }
         }
 
@@ -579,20 +610,22 @@ class orderController{
   // paths record earnings. Uses UTC date parts (Date object) so month/year are
   // real numbers, not the string slices the old moment('l') split produced.
   creditWallets = async (orderId) => {
+    const idStr = orderId.toString()
     const cuOrder = await customerOrder.findById(orderId)
-    const auOrder = await authOrderModel.find({ orderId: new ObjectId(orderId) })
     if (!cuOrder) return
 
+    // Don't credit a cancelled order, and don't double-credit one already
+    // credited (repeated payment confirmations, re-runs, etc.).
+    if (cuOrder.delivery_status === 'cancelled') return
+    const already = await myShopWallet.findOne({ orderId: idStr })
+    if (already) return
+
+    const auOrder = await authOrderModel.find({ orderId: new ObjectId(orderId) })
     const now = new Date()
     const month = now.getMonth() + 1
     const year = now.getFullYear()
 
-    await myShopWallet.create({
-        amount: cuOrder.price,
-        month,
-        year,
-        orderId: orderId.toString()
-    })
+    await myShopWallet.create({ amount: cuOrder.price, month, year, orderId: idStr })
 
     for (let i = 0; i < auOrder.length; i++) {
         await sellerWallet.create({
@@ -600,15 +633,23 @@ class orderController{
             amount: auOrder[i].price,
             month,
             year,
-            orderId: orderId.toString()
+            orderId: idStr
         })
     }
   }
 
-  // One-time backfill: credit wallets for completed (paid/cod) orders that were
-  // never credited. Token-guarded (BACKFILL_TOKEN env). Dry-run unless
-  // ?commit=true. Idempotent — skips orders already stamped with an orderId
-  // wallet row. Remove this route after running.
+  // Reverse a prior credit when an order is cancelled — delete its wallet rows
+  // so seller earnings and admin sales drop back. Safe to call even if the
+  // order was never credited (no-op then).
+  reverseWallets = async (orderId) => {
+    const idStr = orderId.toString()
+    await myShopWallet.deleteMany({ orderId: idStr })
+    await sellerWallet.deleteMany({ orderId: idStr })
+  }
+
+  // One-time reconciliation route (free tier has no shell). Token-guarded,
+  // dry-run unless ?commit=true. Credits completed non-cancelled orders and
+  // REMOVES credits for cancelled ones. Idempotent + self-healing. Remove after.
   backfill_wallets = async (req, res) => {
     const { token, commit } = req.query
     if (!process.env.BACKFILL_TOKEN || token !== process.env.BACKFILL_TOKEN) {
@@ -617,12 +658,23 @@ class orderController{
     const doWrite = commit === 'true'
     try {
         const orders = await customerOrder.find({ payment_status: { $in: ['paid', 'cod'] } })
-        let credited = 0, skipped = 0, adminTotal = 0, sellerRows = 0
-        const details = []
+        let credited = 0, skipped = 0, reversed = 0, adminTotal = 0, sellerRows = 0, reversedTotal = 0
 
         for (const order of orders) {
             const orderId = order._id.toString()
+            const isCancelled = order.delivery_status === 'cancelled'
             const existing = await myShopWallet.findOne({ orderId })
+
+            if (isCancelled) {
+                // Should NOT be credited — remove any credit it wrongly has.
+                if (existing) {
+                    if (doWrite) await this.reverseWallets(orderId)
+                    reversed++
+                    reversedTotal += order.price
+                }
+                continue
+            }
+
             if (existing) { skipped++; continue }
 
             const created = order.createdAt ? new Date(order.createdAt) : new Date()
@@ -641,16 +693,16 @@ class orderController{
             adminTotal += order.price
             sellerRows += subs.length
             credited++
-            details.push({ orderId: orderId.slice(-8), price: order.price, subOrders: subs.length })
         }
 
         return responseReturn(res, 200, {
             mode: doWrite ? 'COMMITTED' : 'DRY RUN (add &commit=true to write)',
             ordersCredited: credited,
             alreadyCreditedSkipped: skipped,
+            cancelledReversed: reversed,
             adminSalesAdded: Number(adminTotal.toFixed(2)),
-            sellerWalletRowsCreated: sellerRows,
-            details
+            adminSalesReversed: Number(reversedTotal.toFixed(2)),
+            sellerWalletRowsCreated: sellerRows
         })
     } catch (error) {
         console.log('backfill_wallets error:', error.message)
