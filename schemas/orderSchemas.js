@@ -29,7 +29,11 @@ const placeOrderSchema = z.object({
     price: z.number().nonnegative().finite(),
     shipping_fee: z.number().nonnegative().finite(),
     shippingInfo: shippingInfoSchema,
-    products: z.array(orderProductGroup).min(1, 'Cart is empty')
+    products: z.array(orderProductGroup).min(1, 'Cart is empty'),
+    // The storefront also sends `items` (total item count). The controller
+    // ignores it, but strict() would reject the whole request without it —
+    // silently breaking checkout. Accept and drop it.
+    items: z.number().int().nonnegative().optional()
 }).strict()
 
 const paynowCreateSchema = z.object({
