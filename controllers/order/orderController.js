@@ -647,69 +647,6 @@ class orderController{
     await sellerWallet.deleteMany({ orderId: idStr })
   }
 
-  // One-time reconciliation route (free tier has no shell). Token-guarded,
-  // dry-run unless ?commit=true. Credits completed non-cancelled orders and
-  // REMOVES credits for cancelled ones. Idempotent + self-healing. Remove after.
-  backfill_wallets = async (req, res) => {
-    const { token, commit } = req.query
-    if (!process.env.BACKFILL_TOKEN || token !== process.env.BACKFILL_TOKEN) {
-        return responseReturn(res, 403, { error: 'Forbidden' })
-    }
-    const doWrite = commit === 'true'
-    try {
-        const orders = await customerOrder.find({ payment_status: { $in: ['paid', 'cod'] } })
-        let credited = 0, skipped = 0, reversed = 0, adminTotal = 0, sellerRows = 0, reversedTotal = 0
-
-        for (const order of orders) {
-            const orderId = order._id.toString()
-            const isCancelled = order.delivery_status === 'cancelled'
-            const existing = await myShopWallet.findOne({ orderId })
-
-            if (isCancelled) {
-                // Should NOT be credited — remove any credit it wrongly has.
-                if (existing) {
-                    if (doWrite) await this.reverseWallets(orderId)
-                    reversed++
-                    reversedTotal += order.price
-                }
-                continue
-            }
-
-            if (existing) { skipped++; continue }
-
-            const created = order.createdAt ? new Date(order.createdAt) : new Date()
-            const month = created.getMonth() + 1
-            const year = created.getFullYear()
-            const subs = await authOrderModel.find({ orderId: order._id })
-
-            if (doWrite) {
-                await myShopWallet.create({ amount: order.price, month, year, orderId })
-                for (const s of subs) {
-                    await sellerWallet.create({
-                        sellerId: s.sellerId.toString(), amount: s.price, month, year, orderId
-                    })
-                }
-            }
-            adminTotal += order.price
-            sellerRows += subs.length
-            credited++
-        }
-
-        return responseReturn(res, 200, {
-            mode: doWrite ? 'COMMITTED' : 'DRY RUN (add &commit=true to write)',
-            ordersCredited: credited,
-            alreadyCreditedSkipped: skipped,
-            cancelledReversed: reversed,
-            adminSalesAdded: Number(adminTotal.toFixed(2)),
-            adminSalesReversed: Number(reversedTotal.toFixed(2)),
-            sellerWalletRowsCreated: sellerRows
-        })
-    } catch (error) {
-        console.log('backfill_wallets error:', error.message)
-        return responseReturn(res, 500, { error: error.message })
-    }
-  }
-
   // Process payment - common method for confirming payment
   processPayment = async (orderId) => {
     try {

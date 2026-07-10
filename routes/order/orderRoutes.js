@@ -27,9 +27,6 @@ router.post('/order/cod/confirm/:orderId', orderController.confirm_cod_order)
 // Legacy confirm route
 router.get('/order/confirm/:orderId',orderController.order_confirm)
 
-// One-time wallet reconciliation (token-guarded, dry-run by default). Remove after use.
-router.get('/admin/backfill-wallets', orderController.backfill_wallets)
-
 // Admin
 router.get('/admin/orders',orderController.get_admin_orders)
 router.get('/admin/order/:orderId',orderController.get_admin_order)
