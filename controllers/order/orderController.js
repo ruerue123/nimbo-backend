@@ -202,6 +202,10 @@ class orderController{
         if (searchValue) {
             
         } else {
+            // $sort MUST come before $skip/$limit. Chaining
+            // .skip().limit().sort() appends the stages in that order, so it
+            // paginated an unsorted set and only sorted the resulting slice —
+            // newest orders never landed on page 1 (they looked "missing").
             const orders = await customerOrder.aggregate([
                 {
                     $lookup: {
@@ -210,8 +214,11 @@ class orderController{
                         foreignField: 'orderId',
                         as: 'suborder'
                     }
-                }
-            ]).skip(skipPage).limit(parPage).sort({ createdAt: -1})
+                },
+                { $sort: { createdAt: -1 } },
+                { $skip: skipPage },
+                { $limit: parPage }
+            ])
 
             const totalOrder = await customerOrder.aggregate([
                 {
